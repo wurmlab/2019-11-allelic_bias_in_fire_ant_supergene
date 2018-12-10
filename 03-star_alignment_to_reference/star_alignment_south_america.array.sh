@@ -2,7 +2,7 @@
 #$ -cwd
 #$ -j y
 #$ -pe smp 4
-#$ -l h_rt=6:00:00
+#$ -l h_rt=12:00:00
 #$ -l h_vmem=8G
 #$ -t 1-28
 module load star/2.6.1a
