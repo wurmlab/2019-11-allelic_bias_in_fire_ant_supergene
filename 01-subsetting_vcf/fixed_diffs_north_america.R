@@ -1,5 +1,6 @@
 #Package VariantAnnotation version 1.24.5
 library(VariantAnnotation)
+
 #Load vcf
 vcf <- readVcf(file = "tmp/fixed_diffs/supergene.vcf", genome = "Si_gnG")
 #Extract the name of the samples used for generating the vcf and separate them in Sb vs SB
@@ -22,4 +23,4 @@ bb1_diff_lb1 <- sapply(1:nrow(bb_gt), function(i) bb_gt[i,1] != lb_gt[i,1])
 #Generate the new vcf file
 fixed_diff_index <- fixed_bb & fixed_lb & bb1_diff_lb1
 fixed_diff_vcf <- vcf[fixed_diff_index, ]
-writeVcf(fixed_diff_vcf, filename = "results/supergene_fixed_diffs_north_america.vcf")
+writeVcf(fixed_diff_vcf, filename = "tmp/supergene_fixed_diffs_north_america.vcf")

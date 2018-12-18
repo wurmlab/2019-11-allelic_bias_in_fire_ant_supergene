@@ -16,6 +16,10 @@ bcftools view tmp/fixed_diffs/all.vcf.gz $(cat tmp/supergene_scaffolds.ids | tr 
 #Use the R package VariantAnnotation to filter only for fixed differences
 Rscript fixed_diffs.R
 
+#When checked if results are correct:
+#mv tmp/supergene_fixed_diffs_north_america.vcf results/supergene_fixed_diffs_north_america.vcf
+#mv tmp/supergene_fixed_diffs_south_america.vcf results/supergene_fixed_diffs_south_america.vcf
+
 #Number of fixed differences found:
 #North America
 #grep -vc '#' results/supergene_fixed_diffs_north_america.vcf

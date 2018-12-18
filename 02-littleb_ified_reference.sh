@@ -1,5 +1,6 @@
 #!/bin/sh
 module load bcftools/1.8
+
 #Commands to generate a vcf file with fix differences beteween B and b only
 gunzip -c input/Si_gnG.fa.gz > tmp/Si_gnG.fa
 ln -sfr input/subset.vcf tmp/
@@ -15,6 +16,8 @@ tabix -fp vcf tmp/subset.vcf.gz
 sb_sample=$(bcftools query -l input/subset.vcf | grep 'littleb' | head -n 1)
 bcftools consensus --fasta-ref tmp/Si_gnG.fa \
   -s ${sb_sample} tmp/subset.vcf.gz\
-  > results/Si_gnG_littleb.fna
+  > tmp/Si_gnG_littleb.fna
 
-gzip results/Si_gnG_littleb.fna
+#When checked if correct
+#mv tmp/Si_gnG_littleb.fna results/Si_gnG_littleb.fna
+#gzip results/Si_gnG_littleb.fna
