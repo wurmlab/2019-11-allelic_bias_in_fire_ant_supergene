@@ -1,7 +1,7 @@
 #!/bin/bash
 #$ -cwd
 #$ -pe smp 16
-#$ -l h_rt=6:0:0
+#$ -l h_rt=12:0:0
 #$ -l h_vmem=4G
 module load star/2.6.1a
 
