@@ -8,20 +8,14 @@
 module load star/2.6.1a
 module load samtools/1.9
 INPUT_FILE=$(sed -n "${SGE_TASK_ID}p" tmp/samples.txt)
-#Run all samples array. First run
-#For some reason the --readFilesCommand zcat does not work with these reads, so instead I directly use <(zcat sample_name) to get
-#the same result
-# by deault doesn't include MD (For mismatch), include here
-STAR --runThreadN 4 --genomeDir tmp/star_reference \
-     --readFilesIn <(zcat input/ar_trimmed_reads/${INPUT_FILE}R1_trimmed.fastq.gz) <(zcat input/ar_trimmed_reads/${INPUT_FILE}R2_trimmed.fastq.gz) \
-     --outSAMtype BAM SortedByCoordinate --outFileNamePrefix results/${INPUT_FILE} --outSAMattributes All
 
-
-#Run all samples in array. Second run
+#Run all samples in parallel. Multiple mapping reads are not allowed. Only one random alignment of the multiply mapped reads
+#will be considered#Run all samples in array. Second run
 
 STAR --runThreadN 4 --genomeDir tmp/star_reference \
      --readFilesIn <(zcat input/ar_trimmed_reads/${INPUT_FILE}R1_trimmed.fastq.gz) <(zcat input/ar_trimmed_reads/${INPUT_FILE}R2_trimmed.fastq.gz) \
-     --outSAMtype BAM SortedByCoordinate --outFileNamePrefix results/${INPUT_FILE} --outSAMattributes All \
-     --sjdbFileChrStartEnd results/${INPUT_FILE}SJ.out.tab
+     --outSAMtype BAM SortedByCoordinate --outFileNamePrefix tmp/bam_files/${INPUT_FILE} --outSAMattributes All \
+     --sjdbFileChrStartEnd input/all_samples_south_americaSJ.out.tab --outMultimapperOrder string --outSAMmultNmax 1
+     --readFilesCommand zcat
 
 samtools index results/${INPUT_FILE}Aligned.sortedByCoord.out.bam
