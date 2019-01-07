@@ -13,7 +13,7 @@ INPUT_FILE=$(sed -n "${SGE_TASK_ID}p" tmp/samples.txt)
 STAR --runThreadN 4 --genomeDir tmp/star_reference \
      --readFilesIn input/wurm_2011_reads/${INPUT_FILE}.fastq.gz \
      --outSAMtype BAM SortedByCoordinate --outFileNamePrefix tmp/bam_files/${INPUT_FILE} --outSAMattributes All \
-     --sjdbFileChrStartEnd input/all_samples_north_americaSJ.out.tab --outMultimapperOrder string --outSAMmultNmax 1
+     --sjdbFileChrStartEnd input/all_samples_north_americaSJ.out.tab --outMultimapperOrder Random --outSAMmultNmax 1 \
      --readFilesCommand zcat
 
 samtools index tmp/bam_files/${INPUT_FILE}Aligned.sortedByCoord.out.bam
