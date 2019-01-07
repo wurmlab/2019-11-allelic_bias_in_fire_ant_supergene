@@ -13,7 +13,7 @@ INPUT_FILE=$(sed -n "${SGE_TASK_ID}p" tmp/samples.txt)
 #will be considered#Run all samples in array. Second run
 
 STAR --runThreadN 4 --genomeDir tmp/star_reference \
-     --readFilesIn zcat input/ar_trimmed_reads/${INPUT_FILE}R1_trimmed.fastq.gz zcat input/ar_trimmed_reads/${INPUT_FILE}R2_trimmed.fastq.gz \
+     --readFilesIn input/ar_trimmed_reads/${INPUT_FILE}R1_trimmed.fastq.gz input/ar_trimmed_reads/${INPUT_FILE}R2_trimmed.fastq.gz \
      --outSAMtype BAM SortedByCoordinate --outFileNamePrefix tmp/bam_files/${INPUT_FILE} --outSAMattributes All \
      --sjdbFileChrStartEnd input/all_samples_south_americaSJ.out.tab --outMultimapperOrder Random --outSAMmultNmax 1 \
      --readFilesCommand zcat
