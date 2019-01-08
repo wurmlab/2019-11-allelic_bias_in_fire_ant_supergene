@@ -9,9 +9,7 @@ ls input/bigB_bam/*\.bam | cut -d '/' -f 3 | sed 's/Aligned.*//g' > tmp/samples_
 ls input/littleb_bam/*\.bam | cut -d '/' -f 3 | sed 's/Aligned.*//g' > tmp/samples_lb.txt
 cmp tmp/samples_bb.txt tmp/samples_lb.txt
 status=$?
-if [[ $status = 0 ]]; then
-    echo "Files are the same"
-else
+if [[ $status != 0 ]]; then
     echo "ERROR: Files are different"
     exit 1
 fi
@@ -19,10 +17,9 @@ cat tmp/samples_lb.txt tmp/samples_bb.txt| sort -u > tmp/samples.txt
 
 
 #Step 6 of the WASP pipeline for mapping, merge bam files aligned to
-parallel 'samtools merge tmp/{}_merged.bam input/bigB_bam/{}Aligned.sortedByCoord.out.bam\
-          input/littleb_bam/{}Aligned.sortedByCoord.out.bam' :::: tmp/samples.txt
-
-parallel 'samtools sort -o tmp/{}_merged_sorted.bam tmp/{}_merged.bam' :::: tmp/samples.txt
+parallel 'samtools merge - input/bigB_bam/{}Aligned.sortedByCoord.out.bam\
+          input/littleb_bam/{}Aligned.sortedByCoord.out.bam | \
+          samtools sort -o tmp/{}_merged_sorted.bam -' :::: tmp/samples.txt
 
 parallel 'samtools index tmp/{}_merged_sorted.bam' :::: tmp/samples.txt
 
