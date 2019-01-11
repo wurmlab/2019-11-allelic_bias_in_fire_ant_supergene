@@ -17,3 +17,5 @@ java -jar picard SortVcf \
       O=tmp/sorted_subset.vcf
 
 qsub script_gatk_neutral_ref_north_america.array.sh
+qsub script_gatk_neutral_ref_south_america.array.sh
+

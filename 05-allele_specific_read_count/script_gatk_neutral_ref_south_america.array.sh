@@ -11,4 +11,4 @@ OUTPUT_FILE=$(sed -n "${SGE_TASK_ID}p" samples.ids)
 
 java -jar GATK -R tmp/Si_gnG.fna -T ASEReadCounter -I ${INPUT_FILE} \
           -sites tmp/sorted_subset.vcf \
-          -o results/${OUTPUT_FILE}.sa_neutral.csv -U ALLOW_N_CIGAR_READS > results/${OUTPUT_FILE}.sa_neutral.out
+          -o tmp/${OUTPUT_FILE}.sa_neutral.csv -U ALLOW_N_CIGAR_READS > tmp/${OUTPUT_FILE}.sa_neutral.out
