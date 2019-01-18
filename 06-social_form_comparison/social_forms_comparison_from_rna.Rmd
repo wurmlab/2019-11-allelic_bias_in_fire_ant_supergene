@@ -70,7 +70,7 @@ colData
 
 Once the data has been loaded into R, it needs to be ran through tximport to make it compatible with DESeq2. The analysis in DESeq2 needs to be performed independently in workers and queens, so the data will be divided in two.The analysis will be performed in genes rather than transcripts (the original input). Tximport will assign the counts per transcript to their corresponding genes. For this to work, a table with each transcript and its corresponding gene needs to be loaded into R. This table was generated based on the gene annotation from RefSeq (gnG assembly, version GCF_000188075.1). 
 
-```{r _load_data_tximport, message = FALSE}
+```{r _load_data_tximport, message = FALSE, warning = FALSE}
 
 #Separate data into workers and queens:
 info <- list()

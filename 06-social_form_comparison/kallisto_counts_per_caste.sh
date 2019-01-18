@@ -19,4 +19,4 @@ parallel -j 12 'kallisto quant -i tmp/k_index_sinvicta -o tmp/kallisto_counts/{}
           :::: tmp/samples.ids
 
 #Run the R markdown script and generate a pdf with the results
- R -e "rmarkdown::render('social_forms_comparison_from_rna.Rmd',output_file='social_forms_comparison_from_rna.pdf')"
+R -e "rmarkdown::render('social_forms_comparison_from_rna.Rmd',output_file='results/social_forms_comparison_from_rna.pdf')"
