@@ -254,7 +254,8 @@ sizeFactors(dds_Bb) <- rep(1, ncol(to_analyse_DESeq2_polyq))
 dds_Bb_DE <- DESeq(dds_Bb)
 
 #Save the DESeq2 object
-save(dds_Bb_DE, file = "results/dds_Sb_vs_SB_south_america.RData")
+dds_Bb_DE_sa <- dds_Bb_DE
+save(dds_Bb_DE_sa, file = "results/dds_Sb_vs_SB_south_america.RData")
 #Get results:
 res_Bb <- results(dds_Bb_DE, contrast = c("allele", "B", "b"))
 
