@@ -263,7 +263,7 @@ sizeFactors(dds_ar_interaction) <- rep(1, ncol(to_analyse_DESeq2_ar))
 dds_deg_ar_interaction <- DESeq(dds_ar_interaction, test = "LRT", reduced = ~ colony + body_part + allele)
 
 #Get results
-res_deg_ar_interaction <- results(dds_deg_all_interaction)
+res_deg_ar_interaction <- results(dds_deg_ar_interaction)
 #How many DEG with interaction?
 length(which(res_deg_ar_interaction$padj < 0.05))
 #0
@@ -271,12 +271,15 @@ length(which(res_deg_ar_interaction$padj < 0.05))
 The interaction effect by body part is non-significant for ANY genes in the supergene. Next model, WITHOUT interaction term, just looking directly at 
 the allele effect once the body part and colony effect have been considered
 
-``` {r interaction_allele:body_part, message = FALSE}
+``` {r no_interaction, message = FALSE}
 dds_ar <- DESeqDataSetFromMatrix(countData = to_analyse_DESeq2_ar, colData = colData_ar, design = ~ colony + body_part + allele)
 #Perform the analysis replacing the sizeFactors: 
 sizeFactors(dds_ar) <- rep(1, ncol(to_analyse_DESeq2_ar))
 #Perform DESeq analysis
 dds_deg_ar <- DESeq(dds_ar)
+
+#Save the DESeq2 object
+save(dds_deg_ar, file = "results/dds_Sb_vs_SB_south_america.RData")
 
 #Get results
 res_deg_ar <- results(dds_deg_ar)
