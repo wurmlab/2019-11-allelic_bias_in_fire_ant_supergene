@@ -1,0 +1,102 @@
+---
+title: "Sb to Sb differences heatamp"
+author: "Carlos Martinez Ruiz"
+date: "18 January 2019"
+output: pdf_document
+---
+
+```{r setup, include = FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r libraries, echo = FALSE, message = FALSE}
+#Load all libraries
+library(tximport)
+library(readr)
+library(DESeq2)
+library(GenomicRanges)
+library(GenomicFeatures)
+library(ggplot2)
+
+version
+
+for (package in (.packages()) ) {
+ print(paste("Package", package, "version", package.version(package)))
+}
+```
+
+Load the data from the Sb vs SB allele specific comparison for both North American and South American populations, extract read counts. 
+
+```{r load_data, include = FALSE}
+load("input/dds_Sb_vs_SB_north_america.RData")
+load("input/dds_Sb_vs_SB_south_america.RData")
+
+counts_north_america <- counts(dds_Bb_DE)
+counts_south_america <- counts(dds_deg_ar)
+``` 
+
+How many genes do both datasets have in common?
+
+```{r genes_in_common, include = FALSE}
+genes_south_america <- row.names(counts_south_america)
+genes_north_america <- row.names(counts_north_america)
+
+genes_both <- genes_north_america[genes_north_america %in% genes_south_america]
+
+#Number of genes present in both datsets:
+length(genes_both)
+``` 
+
+All genes found with fixed differences in South America are also present in North America
+
+##Plot heatmap
+
+```{r plot_heatmap, include = FALSE}
+#Parse the dataset to make it ggplot friendly
+samples_north_america <- colnames(counts_north_america)
+parsed_counts_north_america <- data.frame(c(counts_north_america),
+                                          rep(samples_north_america, each = nrow(counts_north_america)),
+                                          rep(genes_north_america, ncol(counts_north_america)), 
+                                          rep("north_america", (nrow(counts_north_america) * ncol(counts_north_america)))
+                                          )
+colnames(parsed_counts_north_america) <- c("counts", "sample", "gene", "population") 
+
+samples_south_america <- colnames(counts_south_america)
+parsed_counts_south_america <- data.frame(c(counts_south_america),
+                                          rep(samples_south_america, each = nrow(counts_south_america)),
+                                          rep(genes_south_america, ncol(counts_south_america)), 
+                                          rep("south_america", (nrow(counts_south_america) * ncol(counts_south_america)))
+                                          )
+colnames(parsed_counts_south_america) <- c("counts", "sample", "gene", "population") 
+
+#Add the missing genes in the south american dataset to make both datasets compatible
+missing_genes_south_america <- genes_north_america[!genes_north_america %in% genes_south_america]
+add_missing_genes <- data.frame(rep(NA, length(missing_genes_south_america) * ncol(counts_south_america)),
+                                rep(samples_south_america, length(missing_genes_south_america)),
+                                rep(missing_genes_south_america, ncol(counts_south_america)),
+                                rep("south_america", length(missing_genes_south_america) * ncol(counts_south_america))
+                                )
+colnames(add_missing_genes) <- c("counts", "sample", "gene", "population") 
+
+parsed_counts_south_america <- rbind(parsed_counts_south_america, add_missing_genes)
+rm(add_missing_genes)
+
+#Merge both datasets
+parsed_counts_all <- rbind(parsed_counts_north_america, parsed_counts_south_america)
+parsed_counts_all$allele <- gsub(x = parsed_counts_all$sample, pattern = ".+_", replacement = "")
+parsed_counts_all$allele <- ifelse(parsed_counts_all$allele == "B" , "bigB", "littleb")
+
+#Plot heatmap
+ggplot(parsed_counts_all, aes(x = sample, y = gene)) + geom_tile(aes(fill = log2(counts + 1)), colour = "grey50") +
+  facet_grid(. ~ population, scales = "free", space = "free") +
+  scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") + 
+  theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()) +
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+  theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
+                                                      legend.text = element_text(size=13, face="bold")) 
+
+``` 
+
+
+
+
+
