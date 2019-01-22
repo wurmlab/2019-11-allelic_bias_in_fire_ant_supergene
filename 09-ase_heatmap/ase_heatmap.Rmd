@@ -16,7 +16,7 @@ library(DESeq2)
 library(GenomicRanges)
 library(GenomicFeatures)
 library(ggplot2)
-
+library(dplyr)
 version
 
 for (package in (.packages()) ) {
@@ -50,7 +50,8 @@ All genes found with fixed differences in South America are also present in Nort
 
 ##Plot heatmap
 
-```{r plot_heatmap, include = FALSE}
+Heatmap with raw read counts
+```{r plot_heatmap_read_counts, include = FALSE}
 #Parse the dataset to make it ggplot friendly
 samples_north_america <- colnames(counts_north_america)
 parsed_counts_north_america <- data.frame(c(counts_north_america),
@@ -84,6 +85,7 @@ rm(add_missing_genes)
 parsed_counts_all <- rbind(parsed_counts_north_america, parsed_counts_south_america)
 parsed_counts_all$allele <- gsub(x = parsed_counts_all$sample, pattern = ".+_", replacement = "")
 parsed_counts_all$allele <- ifelse(parsed_counts_all$allele == "B" , "bigB", "littleb")
+parsed_counts_all <- parsed_counts_all[order(parsed_counts_all$allele, parsed_counts_all$sample), ]
 
 #Plot heatmap
 ggplot(parsed_counts_all, aes(x = sample, y = gene)) + geom_tile(aes(fill = log2(counts + 1)), colour = "grey50") +
@@ -97,6 +99,45 @@ ggplot(parsed_counts_all, aes(x = sample, y = gene)) + geom_tile(aes(fill = log2
 ``` 
 
 
+Heatmap with logarithm of the read count ratios between variants
+```{r plot_heatmap_read_counts, include = FALSE}
+#Parse the dataset to make it ggplot friendly
+#Separate big B and little b samples
+samples_north_america_littleb <- grep(x = samples_north_america, pattern = "_b", value = TRUE)
+samples_north_america_bigB <- grep(x = samples_north_america, pattern = "_B", value = TRUE)
+samples_north_america_no_allele <- unique(gsub(x = samples_north_america, pattern = "_[Bb]", replacement = ""))
 
+counts_north_america_littleb <- counts_north_america[, samples_north_america_littleb]
+counts_north_america_bigB <- counts_north_america[, samples_north_america_bigB]
+
+
+parsed_counts_north_america_ratio <- data.frame(c(counts_north_america_littleb),
+                                                c(counts_north_america_bigB),
+                                                rep(samples_north_america_no_allele, each = nrow(counts_north_america)),
+                                                rep(genes_north_america, length(samples_north_america_no_allele)), 
+                                                rep("north_america", (nrow(counts_north_america) * length(samples_north_america_no_allele)))
+                                                )
+colnames(parsed_counts_north_america_ratio) <- c("littleb", "bigB", "sample", "gene", "population") 
+
+parsed_counts_north_america_ratio$total_counts <- parsed_counts_north_america_ratio$littleb + parsed_counts_north_america_ratio$bigB
+parsed_counts_north_america_ratio$lfc <- log2((parsed_counts_north_america_ratio$bigB +1) / (parsed_counts_north_america_ratio$littleb +1))
+
+#Order the genes by mean read count
+mean_reads_north_america <- ddply(parsed_counts_north_america_ratio, .(gene), summarize, mean = mean(total_counts))
+mean_reads_north_america <- mean_reads_north_america[order(mean_reads_north_america$mean), ]
+gene_order_north_america <- rep(mean_reads_north_america$gene, length(unique(samples_north_america_no_allele)))
+
+#Use the sorted genes to sort the parsed counts
+parsed_counts_north_america_ratio$gene <- factor(parsed_counts_north_america_ratio$gene, levels = mean_reads_north_america$gene)
+  
+#Plot heatmap for North America
+ggplot(parsed_counts_north_america_ratio, aes(x = sample, y = gene)) + geom_tile(aes(fill = lfc), colour = "grey50") +
+       scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") + 
+       theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()) +
+       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+       theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
+                                                           legend.text = element_text(size=13, face="bold")) 
+
+```
 
 
