@@ -16,7 +16,7 @@ library(DESeq2)
 library(GenomicRanges)
 library(GenomicFeatures)
 library(ggplot2)
-library(dplyr)
+library(plyr)
 version
 
 for (package in (.packages()) ) {
@@ -99,8 +99,8 @@ ggplot(parsed_counts_all, aes(x = sample, y = gene)) + geom_tile(aes(fill = log2
 ``` 
 
 
-Heatmap with logarithm of the read count ratios between variants
-```{r plot_heatmap_read_counts, include = FALSE}
+Heatmap with logarithm of the read count ratios between variants for North American populations
+```{r plot_heatmap_read_counts_north_america, include = FALSE}
 #Parse the dataset to make it ggplot friendly
 #Separate big B and little b samples
 samples_north_america_littleb <- grep(x = samples_north_america, pattern = "_b", value = TRUE)
@@ -123,9 +123,11 @@ parsed_counts_north_america_ratio$total_counts <- parsed_counts_north_america_ra
 parsed_counts_north_america_ratio$lfc <- log2((parsed_counts_north_america_ratio$bigB +1) / (parsed_counts_north_america_ratio$littleb +1))
 
 #Order the genes by mean read count
-mean_reads_north_america <- ddply(parsed_counts_north_america_ratio, .(gene), summarize, mean = mean(total_counts))
+mean_reads_north_america <- ddply(parsed_counts_north_america_ratio, .(gene), summarize, mean = 
+                                  mean(total_counts))
 mean_reads_north_america <- mean_reads_north_america[order(mean_reads_north_america$mean), ]
-gene_order_north_america <- rep(mean_reads_north_america$gene, length(unique(samples_north_america_no_allele)))
+gene_order_north_america <- rep(mean_reads_north_america$gene,
+                                length(unique(samples_north_america_no_allele)))
 
 #Use the sorted genes to sort the parsed counts
 parsed_counts_north_america_ratio$gene <- factor(parsed_counts_north_america_ratio$gene, levels = mean_reads_north_america$gene)
@@ -137,6 +139,48 @@ ggplot(parsed_counts_north_america_ratio, aes(x = sample, y = gene)) + geom_tile
        theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
        theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
                                                            legend.text = element_text(size=13, face="bold")) 
+
+
+
+```
+
+Comparison of mean read counts between South American and North American populations
+```{r compare_mean_read_counts, include = FALSE}
+#Parse the dataset to make it ggplot friendly
+#Separate big B and little b samples
+samples_south_america_littleb <- grep(x = samples_south_america, pattern = "_b", value = TRUE)
+samples_south_america_bigB <- grep(x = samples_south_america, pattern = "_B", value = TRUE)
+samples_south_america_no_allele <- unique(gsub(x = samples_south_america, pattern = "_[Bb]", replacement = ""))
+
+counts_south_america_littleb <- counts_south_america[, samples_south_america_littleb]
+counts_south_america_bigB <- counts_south_america[, samples_south_america_bigB]
+
+parsed_counts_south_america_ratio <- data.frame(c(counts_south_america_littleb),
+                                                c(counts_south_america_bigB),
+                                                rep(samples_south_america_no_allele,
+                                                    each =nrow(counts_south_america)),
+                                                rep(genes_south_america,
+                                                    length(samples_south_america_no_allele)), 
+                                                rep("south_america",
+                                                    (nrow(counts_south_america) * length(samples_south_america_no_allele)))
+                                                )
+colnames(parsed_counts_south_america_ratio) <- c("littleb", "bigB", "sample", "gene", "population") 
+
+parsed_counts_south_america_ratio$total_counts <- parsed_counts_south_america_ratio$littleb + parsed_counts_south_america_ratio$bigB
+parsed_counts_south_america_ratio$lfc <- log2((parsed_counts_south_america_ratio$bigB +1) / (parsed_counts_south_america_ratio$littleb +1))
+
+#Get mean read count for South American samples
+mean_reads_south_america <- ddply(parsed_counts_south_america_ratio, .(gene), summarize, mean = 
+                                  mean(total_counts))
+mean_reads_south_america <- mean_reads_south_america[order(mean_reads_south_america$mean), ]
+
+#Get the list of genes in North America that overlap with South America
+mean_reads_all <- merge(mean_reads_north_america, mean_reads_south_america, by = "gene")
+colnames(mean_reads_all) <- c("gene", "mean_na", "mean_sa")
+
+#Plot means per population
+plot(log(mean_reads_all$mean_na),
+     log(mean_reads_all$mean_sa))
 
 ```
 
