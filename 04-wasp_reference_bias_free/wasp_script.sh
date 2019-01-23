@@ -18,7 +18,7 @@ cat tmp/samples_lb.txt tmp/samples_bb.txt| sort -u > tmp/samples.txt
 #Add a label to little b bam files to avoid clash with identical identifiers after merging
 mkdir tmp/littleb_bam_label
 parallel "samtools view -h input/littleb_bam/{}Aligned.sortedByCoord.out.bam |\
-          sed -r 's/(^GWNJ.+\t)/littleb-\1/' | samtools view -bS > \
+          sed -r 's/(^(GWNJ|C3PO).+\t)/littleb-\1/' | samtools view -bS > \
           tmp/littleb_bam_label/{}label.bam" :::: tmp/samples.txt
 
 #Step 6 of the WASP pipeline for mapping, merge bam files aligned to
