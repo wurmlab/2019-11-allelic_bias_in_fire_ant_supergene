@@ -46,7 +46,7 @@ genes_both <- genes_north_america[genes_north_america %in% genes_south_america]
 length(genes_both)
 ``` 
 
-All genes found with fixed differences in South America are also present in North America
+123 out of 125 genes found with fixed differences in South America are also present in North America
 
 ##Plot heatmap
 
@@ -139,9 +139,6 @@ ggplot(parsed_counts_north_america_ratio, aes(x = sample, y = gene)) + geom_tile
        theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
        theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
                                                            legend.text = element_text(size=13, face="bold")) 
-
-
-
 ```
 
 Comparison of mean read counts between South American and North American populations
@@ -183,5 +180,39 @@ plot(log(mean_reads_all$mean_na),
      log(mean_reads_all$mean_sa))
 
 ```
+
+Mean read counts across populations is roughly similar. For next plots, the order for the North American dataset will be kept. 
+Heatmap with logarithm of the read count ratios between variants for South American populations
+```{r plot_heatmap_read_counts_south_america, include = FALSE}
+
+#Use the sorted genes from the North America dataset to sort the parsed counts
+mean_reads_all_sorted <- mean_reads_all[order(mean_reads_all$mean_na, decreasing = TRUE), ]
+parsed_counts_south_america_ratio$gene <- factor(parsed_counts_south_america_ratio$gene, levels = mean_reads_all_sorted$gene)
+
+#Add body part as a factor
+parsed_counts_south_america_ratio$body_part <- gsub(x = parsed_counts_south_america_ratio$sample,
+                                                    pattern = "([0-9]+[BC]?)([A-Z]+)", replacement = "\\2")
+  
+#Plot heatmap for North America
+ggplot(parsed_counts_south_america_ratio, aes(x = sample, y = gene)) + geom_tile(aes(fill = lfc), colour = "grey50") +
+       facet_grid(. ~ body_part, scales = "free") +
+       scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") + 
+       theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()) +
+       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+       theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
+                                                           legend.text = element_text(size=13, face="bold")) 
+```
+
+
+
+
+
+
+
+
+
+
+
+
 
 

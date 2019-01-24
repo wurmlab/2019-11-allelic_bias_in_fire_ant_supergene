@@ -16,6 +16,7 @@ library(DESeq2)
 library(GenomicRanges)
 library(GenomicFeatures)
 library(ggplot2)
+library(dplyr)
 
 for (package in (.packages()) ) { 
  print(paste("Package", package, "version", package.version(package)))
@@ -74,10 +75,10 @@ si_ann <- makeTxDbFromGFF(file = "input/GCF_000188075.1_Si_gnG_genomic.gff",
 
 #Generate a table with the gene names and its position in the reference
 gene_ids <- keys(si_ann, "GENEID")
-gene_positions <- select(x = si_ann,
-                        keys = gene_ids,
-                        columns = c("GENEID","TXCHROM", "TXSTART", "TXEND"),
-                        keytype = "GENEID")
+gene_positions <- AnnotationDbi::select(x = si_ann,
+                                        keys = gene_ids,
+                                        columns = c("GENEID","TXCHROM", "TXSTART", "TXEND"),
+                                        keytype = "GENEID")
 
 colnames(gene_positions) <- c("gene","contig", "start", "end")
 
@@ -104,7 +105,7 @@ regions_ranges <- GRanges(Rle(regions_gng$scaffold),
 
 Once the positions have been generated, it is just a matter of overlapping all GRanges objects, to obtain variant specific data per gene for loci in the supergene region.
 
-```{r overlap_granges_objects, message = FALSE}
+```{r overlap_granges_objects, message = FALSE, warning = FALSE}
 
 #This function merges both GRanges objects (the one with the allele counts
 # and the other with the transcript anf gene names) according to their overlapping positions.
@@ -196,11 +197,35 @@ to_analyse <- subset(regions_ase_df, region == "supergene")
 to_analyse_agg     <- aggregate(cbind(count_ref, count_alt) ~ gene + sample,
                                 data = to_analyse, median)
 
-#Make sure that all samples have the same genes in the dataframe (some samples have genes that are not on other samples):
-id.table <- table(to_analyse_agg$gene)
+to_analyse_agg$body_part <-  gsub(x = to_analyse_agg$sample,
+                                  pattern = "([0-9]+[BC]?)([A-Z]+)", replacement = "\\2")
+#Make sure that all samples have the same genes in the dataframe. The genes selected are present in all samples in at least one tissue:
+#Get genes present in all samples for at least one body part
+id.table <- table(to_analyse_agg$gene, to_analyse_agg$body_part)
 sample_number <- length(unique(to_analyse_agg$sample))
-to_analyse_agg <- subset(to_analyse_agg,
-                         gene %in% names(id.table[id.table == sample_number]))
+body_part_number <- length(unique(to_analyse_agg$body_part))
+genes_to_keep <- filter_all(as.data.frame(id.table),
+                            any_vars(. == (sample_number / body_part_number)))
+genes_to_keep <- as.data.frame(unique(genes_to_keep$Var1))
+colnames(genes_to_keep) <- "gene"
+
+#Loop to add the missing genes per sample while removing genes that are not present in all samples in at least one tissue
+all_samples <- unique(to_analyse_agg$sample)
+to_analyse_all_genes <- data.frame()
+for(sample in all_samples){
+  #Subset dataset per sample
+  sample_subset <- to_analyse_agg[to_analyse_agg$sample == sample, ]
+  #Keep genes common only to all body parts, remove the genes present exclusively in this sample
+  sample_subset <- merge(sample_subset, genes_to_keep, all.y = TRUE)
+  #Replace NAs generated
+  sample_subset$sample[is.na(sample_subset$sample)] <- sample
+  sample_subset$body_part[is.na(sample_subset$body_part)] <- unique(sample_subset$body_part)[!is.na(unique(sample_subset$body_part))]
+  sample_subset$count_ref[is.na(sample_subset$count_ref)] <- 0
+  sample_subset$count_alt[is.na(sample_subset$count_alt)] <- 0
+  #Bind with main data frame
+  to_analyse_all_genes <- rbind(to_analyse_all_genes, sample_subset) 
+}
+to_analyse_agg <- to_analyse_all_genes
 ```
 
 The data needs to be parsed to be used in DESeq2. Only genes which have counts for all individuals are included in downstream analyses.
@@ -306,13 +331,13 @@ Additional tests to check for enrichment: Binomial test for significantly DE gen
 ```{r enrichment_tests, message = FALSE}
 #How many DE genes in total?
 de_ase_ar <- length(which(res_deg_ar$padj < 0.05))
-#8
+#13
 
 #How many in each variant?
 de_ase_ar_lb <- length(which(res_deg_ar$padj < 0.05 & res_deg_ar$log2FoldChange < 0))
-#3
+#6
 de_ase_ar_bb <- length(which(res_deg_ar$padj < 0.05 & res_deg_ar$log2FoldChange > 0))
-#5
+#7
 
 #Total genes in the supergene region:
 
