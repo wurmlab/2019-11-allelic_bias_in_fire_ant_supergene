@@ -1,5 +1,5 @@
 ---
-title: "Sb to Sb differences heatamp"
+title: "Sb to SB differences heatamp"
 author: "Carlos Martinez Ruiz"
 date: "18 January 2019"
 output: pdf_document
@@ -24,9 +24,9 @@ for (package in (.packages()) ) {
 }
 ```
 
-Load the data from the Sb vs SB allele specific comparison for both North American and South American populations, extract read counts. 
+Load the data from the Sb vs SB allele specific comparison for both North American and South American populations, extract read counts.
 
-```{r load_data, include = FALSE}
+```{r load_data, message = FALSE}
 load("input/dds_Sb_vs_SB_north_america.RData")
 load("input/dds_Sb_vs_SB_south_america.RData")
 
@@ -36,11 +36,11 @@ dds_south_america <- estimateSizeFactors(dds_deg_ar)
 
 counts_north_america <- counts(dds_north_america, normalized = TRUE)
 counts_south_america <- counts(dds_south_america, normalized = TRUE)
-``` 
+```
 
 How many genes do both datasets have in common?
 
-```{r genes_in_common, include = FALSE}
+```{r genes_in_common, message = FALSE}
 genes_south_america <- row.names(counts_south_america)
 genes_north_america <- row.names(counts_north_america)
 
@@ -48,30 +48,30 @@ genes_both <- genes_north_america[genes_north_america %in% genes_south_america]
 
 #Number of genes present in both datsets:
 length(genes_both)
-``` 
+```
 
 123 out of 125 genes found with fixed differences in South America are also present in North America
 
 ##Plot heatmap
 
 Heatmap with raw read counts
-```{r plot_heatmap_read_counts, include = FALSE}
+```{r plot_heatmap_read_counts, message = FALSE}
 #Parse the dataset to make it ggplot friendly
 samples_north_america <- colnames(counts_north_america)
 parsed_counts_north_america <- data.frame(c(counts_north_america),
                                           rep(samples_north_america, each = nrow(counts_north_america)),
-                                          rep(genes_north_america, ncol(counts_north_america)), 
+                                          rep(genes_north_america, ncol(counts_north_america)),
                                           rep("north_america", (nrow(counts_north_america) * ncol(counts_north_america)))
                                           )
-colnames(parsed_counts_north_america) <- c("counts", "sample", "gene", "population") 
+colnames(parsed_counts_north_america) <- c("counts", "sample", "gene", "population")
 
 samples_south_america <- colnames(counts_south_america)
 parsed_counts_south_america <- data.frame(c(counts_south_america),
                                           rep(samples_south_america, each = nrow(counts_south_america)),
-                                          rep(genes_south_america, ncol(counts_south_america)), 
+                                          rep(genes_south_america, ncol(counts_south_america)),
                                           rep("south_america", (nrow(counts_south_america) * ncol(counts_south_america)))
                                           )
-colnames(parsed_counts_south_america) <- c("counts", "sample", "gene", "population") 
+colnames(parsed_counts_south_america) <- c("counts", "sample", "gene", "population")
 
 
 #Merge both datasets
@@ -83,17 +83,17 @@ parsed_counts_all <- parsed_counts_all[order(parsed_counts_all$allele, parsed_co
 #Plot heatmap
 ggplot(parsed_counts_all, aes(x = sample, y = gene)) + geom_tile(aes(fill = log2(counts + 1)), colour = "grey50") +
   facet_grid(. ~ population, scales = "free", space = "free") +
-  scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") + 
+  scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") +
   theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()) +
-  theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank()) +
   theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
-                                                      legend.text = element_text(size=13, face="bold")) 
+                                                      legend.text = element_text(size=13, face="bold"))
 
-``` 
+```
 
 
 Heatmap with logarithm of the read count ratios between variants for North American populations
-```{r plot_heatmap_ratio_north_america, include = FALSE}
+```{r plot_heatmap_ratio_north_america, message = FALSE}
 #Parse the dataset to make it ggplot friendly
 #Separate big B and little b samples
 samples_north_america_littleb <- grep(x = samples_north_america, pattern = "_b", value = TRUE)
@@ -107,16 +107,16 @@ counts_north_america_bigB <- counts_north_america[, samples_north_america_bigB]
 parsed_counts_north_america_ratio <- data.frame(c(counts_north_america_littleb),
                                                 c(counts_north_america_bigB),
                                                 rep(samples_north_america_no_allele, each = nrow(counts_north_america)),
-                                                rep(genes_north_america, length(samples_north_america_no_allele)), 
+                                                rep(genes_north_america, length(samples_north_america_no_allele)),
                                                 rep("north_america", (nrow(counts_north_america) * length(samples_north_america_no_allele)))
                                                 )
-colnames(parsed_counts_north_america_ratio) <- c("littleb", "bigB", "sample", "gene", "population") 
+colnames(parsed_counts_north_america_ratio) <- c("littleb", "bigB", "sample", "gene", "population")
 
 parsed_counts_north_america_ratio$total_counts <- parsed_counts_north_america_ratio$littleb + parsed_counts_north_america_ratio$bigB
 parsed_counts_north_america_ratio$lfc <- log2((parsed_counts_north_america_ratio$bigB +1) / (parsed_counts_north_america_ratio$littleb +1))
 
 #Order the genes by mean read count
-mean_reads_north_america <- ddply(parsed_counts_north_america_ratio, .(gene), summarize, mean = 
+mean_reads_north_america <- ddply(parsed_counts_north_america_ratio, .(gene), summarize, mean =
                                   mean(total_counts))
 mean_reads_north_america <- mean_reads_north_america[order(mean_reads_north_america$mean), ]
 gene_order_north_america <- rep(mean_reads_north_america$gene,
@@ -124,32 +124,32 @@ gene_order_north_america <- rep(mean_reads_north_america$gene,
 
 #Use the sorted genes to sort the parsed counts
 parsed_counts_north_america_ratio$gene <- factor(parsed_counts_north_america_ratio$gene, levels = mean_reads_north_america$gene)
-  
+
 #Plot heatmap for North America
 ggplot(parsed_counts_north_america_ratio, aes(x = sample, y = gene)) + geom_tile(aes(fill = lfc), colour = "grey50") +
-       scale_fill_gradient(low = "yellow" , high = "blue", name="lfc") + 
+       scale_fill_gradient(low = "yellow" , high = "blue", name="lfc") +
        theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()) +
-       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) +
        theme(strip.text.y = element_text(size=.5)) + theme(legend.title = element_text(size=15, face="bold"),
-                                                           legend.text = element_text(size=13, face="bold")) 
+                                                           legend.text = element_text(size=13, face="bold"))
 ```
 
 Same plot for genes present only in both populations
-```{r plot_heatmap_ratio_north_america_genes_both, include = FALSE}
+```{r plot_heatmap_ratio_north_america_genes_both, message = FALSE}
 
 parsed_counts_north_america_ratio_subset <- parsed_counts_north_america_ratio[parsed_counts_north_america_ratio$gene %in% genes_both, ]
 
 ggplot(parsed_counts_north_america_ratio_subset, aes(x = sample, y = gene)) + geom_tile(aes(fill = lfc), colour = "grey50") +
-       scale_fill_gradient(low = "yellow" , high = "blue", name="lfc") + 
+       scale_fill_gradient(low = "yellow" , high = "blue", name="lfc") +
        theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()) +
-       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) +
        theme(strip.text.y = element_text(size=.5)) + theme(legend.title = element_text(size=15, face="bold"),
-                                                           legend.text = element_text(size=13, face="bold")) 
+                                                           legend.text = element_text(size=13, face="bold"))
 
 ```
 
 Comparison of mean read counts between South American and North American populations
-```{r compare_mean_read_counts, include = FALSE}
+```{r compare_mean_read_counts, message = FALSE}
 #Parse the dataset to make it ggplot friendly
 #Separate big B and little b samples
 samples_south_america_littleb <- grep(x = samples_south_america, pattern = "_b", value = TRUE)
@@ -164,17 +164,17 @@ parsed_counts_south_america_ratio <- data.frame(c(counts_south_america_littleb),
                                                 rep(samples_south_america_no_allele,
                                                     each =nrow(counts_south_america)),
                                                 rep(genes_south_america,
-                                                    length(samples_south_america_no_allele)), 
+                                                    length(samples_south_america_no_allele)),
                                                 rep("south_america",
                                                     (nrow(counts_south_america) * length(samples_south_america_no_allele)))
                                                 )
-colnames(parsed_counts_south_america_ratio) <- c("littleb", "bigB", "sample", "gene", "population") 
+colnames(parsed_counts_south_america_ratio) <- c("littleb", "bigB", "sample", "gene", "population")
 
 parsed_counts_south_america_ratio$total_counts <- parsed_counts_south_america_ratio$littleb + parsed_counts_south_america_ratio$bigB
 parsed_counts_south_america_ratio$lfc <- log2((parsed_counts_south_america_ratio$bigB +1) / (parsed_counts_south_america_ratio$littleb +1))
 
 #Get mean read count for South American samples
-mean_reads_south_america <- ddply(parsed_counts_south_america_ratio, .(gene), summarize, mean = 
+mean_reads_south_america <- ddply(parsed_counts_south_america_ratio, .(gene), summarize, mean =
                                   mean(total_counts))
 mean_reads_south_america <- mean_reads_south_america[order(mean_reads_south_america$mean), ]
 
@@ -188,9 +188,9 @@ plot(log(mean_reads_all$mean_na),
 
 ```
 
-Mean read counts across populations is roughly similar. For next plots, the order for the North American dataset will be kept. 
+Mean read counts across populations is roughly similar. For next plots, the order for the North American dataset will be kept.
 Heatmap with logarithm of the read count ratios between variants for South American populations
-```{r plot_heatmap_ratio_south_america, include = FALSE}
+```{r plot_heatmap_ratio_south_america, message = FALSE}
 
 #Use the sorted genes from the North America dataset to sort the parsed counts
 mean_reads_all_sorted <- mean_reads_all[order(mean_reads_all$mean_na), ]
@@ -199,29 +199,29 @@ parsed_counts_south_america_ratio$gene <- factor(parsed_counts_south_america_rat
 #Add body part as a factor
 parsed_counts_south_america_ratio$body_part <- gsub(x = parsed_counts_south_america_ratio$sample,
                                                     pattern = "([0-9]+[BC]?)([A-Z]+)", replacement = "\\2")
-  
+
 #Plot heatmap for South America
 ggplot(parsed_counts_south_america_ratio, aes(x = sample, y = gene)) + geom_tile(aes(fill = lfc), colour = "grey50") +
        facet_grid(. ~ body_part, scales = "free") +
-       scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") + 
+       scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") +
        theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()) +
-       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) +
        theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
-                                                           legend.text = element_text(size=13, face="bold")) 
+                                                           legend.text = element_text(size=13, face="bold"))
 ```
 
 Plot heatmap for genes present only in both datasets
-```{r plot_heatmap_ratio_both, include = FALSE}
-#Ensure the datasets for both populations have the same genes. 
-parsed_counts_north_america_ratio$body_part <- rep("whole_body_queen", nrow(parsed_counts_north_america_ratio)) 
+```{r plot_heatmap_ratio_both, message = FALSE}
+#Ensure the datasets for both populations have the same genes.
+parsed_counts_north_america_ratio$body_part <- rep("whole_body_queen", nrow(parsed_counts_north_america_ratio))
 parsed_counts_all_ratios_common_genes <- rbind(parsed_counts_north_america_ratio, parsed_counts_south_america_ratio)
 parsed_counts_all_ratios_common_genes <- parsed_counts_all_ratios_common_genes[parsed_counts_all_ratios_common_genes$gene %in% genes_both, ]
 
 ggplot(parsed_counts_all_ratios_common_genes, aes(x = sample, y = gene)) + geom_tile(aes(fill = lfc), colour = "grey50") +
        facet_grid(. ~ body_part, scales = "free", space = "free") +
-       scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") + 
+       scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") +
        theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) +
        theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
                                                            legend.text = element_text(size=13, face="bold"))
 ```
@@ -229,8 +229,8 @@ ggplot(parsed_counts_all_ratios_common_genes, aes(x = sample, y = gene)) + geom_
 
 Plot heatmap by read counts for genes present in both populations
 
-```{r plot_heatmap_read_counts_compare_populations, include = FALSE}
-#Ensure the datasets for both populations have the same genes. 
+```{r plot_heatmap_read_counts_compare_populations, message = FALSE}
+#Ensure the datasets for both populations have the same genes.
 parsed_counts_all_common_genes <- parsed_counts_all[parsed_counts_all$gene %in% genes_both, ]
 
 #Add a body_part factor
@@ -243,7 +243,7 @@ parsed_counts_all_common_genes$body_part <- gsub(x = parsed_counts_all_common_ge
 levels_bigB <- grep("_B", levels(parsed_counts_all_common_genes$sample), value = TRUE)
 levels_littleb <- grep("_b", levels(parsed_counts_all_common_genes$sample), value = TRUE)
 all_levels <- c(levels_bigB, levels_littleb)
-parsed_counts_all_common_genes$sample <- factor(parsed_counts_all_common_genes$sample, 
+parsed_counts_all_common_genes$sample <- factor(parsed_counts_all_common_genes$sample,
                                                 levels = all_levels)
 
 #Get the names for the x lables in the heatmap (SB vs Sb)
@@ -251,23 +251,23 @@ allele_names_x_axis <- gsub(x = all_levels, pattern = ".+_", replacement = "")
 
 ggplot(parsed_counts_all_common_genes, aes(x = sample, y = gene)) + geom_tile(aes(fill = log2(counts + 1)), colour = "grey50") +
   facet_grid(. ~ body_part, scales = "free", space = "free") +
-  scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") + 
+  scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") +
   theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank()) +
   theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
                                                       legend.text = element_text(size=13, face="bold"))
 
 ```
 
-Plot each population individually, ordering genes by p value 
+Plot each population individually, ordering genes by p value
 For South America
-```{r plot_heatmap_read_counts_south_america, include = FALSE}
+```{r plot_heatmap_read_counts_south_america, message = FALSE}
 
 #Get p values for all genes
 results_north_america <- results(dds_Bb_DE)
 results_south_america <- results(dds_deg_ar)
 
-#Order genes by pvalues 
+#Order genes by pvalues
 results_north_america <- results_north_america[order(results_north_america$pvalue, decreasing = TRUE), ]
 results_south_america <- results_south_america[order(results_south_america$pvalue, decreasing = TRUE), ]
 
@@ -283,18 +283,18 @@ parsed_counts_south_america$body_part <- gsub(x = parsed_counts_south_america$bo
                                               pattern = "_.+", replacement = "")
 
 #Get the right order for genes and samples
-parsed_counts_south_america$sample <- factor(parsed_counts_south_america$sample, 
+parsed_counts_south_america$sample <- factor(parsed_counts_south_america$sample,
                                              levels = all_levels)
 
-parsed_counts_south_america$gene <- factor(parsed_counts_south_america$gene, 
+parsed_counts_south_america$gene <- factor(parsed_counts_south_america$gene,
                                            levels = gene_order_pval_south_america)
 
 #Plot the heatmap
 ggplot(parsed_counts_south_america, aes(x = sample, y = gene)) + geom_tile(aes(fill = log2(counts + 1)), colour = "grey50") +
        facet_grid(. ~ body_part, scales = "free", space = "free") +
-       scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") + 
+       scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") +
        theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) +
        theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
                                                       legend.text = element_text(size=13, face="bold"))
 
@@ -302,19 +302,19 @@ ggplot(parsed_counts_south_america, aes(x = sample, y = gene)) + geom_tile(aes(f
 ```
 
 For North America
-```{r plot_heatmap_read_counts_south_america, include = FALSE}
+```{r plot_heatmap_read_counts_north_america, message = FALSE}
 #Get the right order for genes and samples
-parsed_counts_north_america$sample <- factor(parsed_counts_north_america$sample, 
+parsed_counts_north_america$sample <- factor(parsed_counts_north_america$sample,
                                              levels = all_levels)
 
-parsed_counts_north_america$gene <- factor(parsed_counts_north_america$gene, 
+parsed_counts_north_america$gene <- factor(parsed_counts_north_america$gene,
                                            levels = gene_order_pval_north_america)
 
 #Plot the heatmap
 ggplot(parsed_counts_north_america, aes(x = sample, y = gene)) + geom_tile(aes(fill = log2(counts + 1)), colour = "grey50") +
-       scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") + 
+       scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") +
        theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) + 
+       theme(axis.title.x = element_blank(), axis.title.y = element_blank()) +
        theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
                                                       legend.text = element_text(size=13, face="bold"))
 
@@ -322,5 +322,57 @@ ggplot(parsed_counts_north_america, aes(x = sample, y = gene)) + geom_tile(aes(f
 
 ```
 
+## Fisher's combined probability test
 
+Because it is difficult to compare North and South American p values directly, the results of both tests will be fused together using (Fisher's method)<https://en.wikipedia.org/wiki/Fisher%27s_method>. This method will test whether the combined p value of both analyses is significant.
 
+```{r fisher_combined_test, message = FALSE}
+#Obtain p values for genes present only in both datasets
+results_north_america_subset <- results_north_america[genes_both, ]
+results_south_america_subset <- results_south_america[genes_both, ]
+
+#Get a vector of X2 values based on the combination of p values of both datasets
+combined_ps <- -2 * log((results_north_america_subset$pvalue + results_north_america_subset$pvalue))
+
+#Obtain new p values based on X2 distribution
+new_ps <- pchisq(combined_ps, df = 4, lower.tail = FALSE)
+
+#Adjust p values using the Benjamini and Hochberg method
+new_ps_adjust <- p.adjust(new_ps, method = "BH")
+
+#Because the genes where in the same order, the new p values can be named directly:
+names(new_ps_adjust) <- genes_both
+
+#Retrieve significant genes from the combined p values
+sig_genes_both <- names(new_ps_adjust[new_ps_adjust < 0.05])
+    ```
+
+Re-run the DESeq2 analysis for the allele:body_part interaction, but enriched with genes differentially expressed in both populations.
+
+```{r allele:body_part_interaction_subset, message = FALSE}
+#Retrieve colData from the DESeq dataset and subset for genes of interest
+colData_subset <- colData(dds_deg_ar)
+
+#Subset dataset to include only genes of interest
+raw_counts_south_america_subset <- counts(dds_deg_ar, normalized = FALSE)[sig_genes_both, ]
+
+#Re-run DESeq2
+dds_ar_interaction_subset <- DESeqDataSetFromMatrix(countData = raw_counts_south_america_subset, colData = colData_subset, design = ~ colony + body_part + allele + allele:body_part)
+#Perform the analysis replacing the sizeFactors:
+sizeFactors(dds_ar_interaction_subset) <- rep(1, ncol(raw_counts_south_america_subset))
+#If using test = LRT, deseq2 performs a test for detecting DE loci, using first a likelihood ratio test (ANOVA-like). This test compares the model ~body_part+allele against a
+#reduced model, ~body_part. The p values indicate which genes are significantly DE accross ALL levels of allele. Normalisation
+#has been done only by boy_part, as ASE data comes always from the same sample. If test is not specified it runs the usual Wald test for the last element in the design formula (body_part:allele)
+dds_deg_ar_interaction_subset <- DESeq(dds_ar_interaction_subset, test = "LRT", reduced = ~ colony + body_part + allele)
+res_interaction_subset <- results(dds_deg_ar_interaction_subset)
+
+#Plot the genes of interest for each allele
+subset_parsed_counts_south_america <- parsed_counts_south_america[parsed_counts_south_america$gene %in% sig_genes_both, ]
+
+subset_parsed_counts_south_america$allele <- gsub(x = subset_parsed_counts_south_america$sample,
+                                                  pattern = ".+_",
+                                                  replacement = "")
+
+ggplot(subset_parsed_counts_south_america, aes(x = allele, y = log(counts +1), fill = body_part)) + geom_boxplot() +
+  facet_grid(. ~ gene)
+```

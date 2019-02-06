@@ -107,7 +107,7 @@ txi_reads_q <- tximport(kallisto_files_q, type = "kallisto", reader = read_tsv,
 
 Once the data is ready, the analysis with DESeq2 can be performed by simply running `DESeq()`. **NOTE:** Because this version of DESeq2 is prior to the 1.16 update, the LFCs are automatically shrinked. In newer versions, `betaPrior = TRUE` needs to be added to the `DESeq()` function to get the same results. 
 
-```{r deseq2_analysis , message = FALSE}
+```{r deseq2_analysis, message = FALSE}
 #FOR QUEENS:
 ddsTxi_q <- DESeqDataSetFromTximport(txi_reads_q, colData = info$q,
                                      design = ~ social_form)
@@ -434,4 +434,31 @@ and in workers:
 binom.test(x = de_rec_m_w, n = de_rec_m_w + de_rec_p_w, p = 0.5)
 #In the supergene
 binom.test(x = de_non_rec_m_w, n = de_non_rec_m_w + de_non_rec_p_w, p = 0.5)
+```
+Compare the proportion of monogyne to polygyne biased genes inside and outside the supergene region
+```{r compare_mono_poly_bias, include = FALSE}
+#Workers
+to_test_bias_w <- matrix(data = c(de_rec_m_w, de_rec_p_w,
+                                  de_non_rec_m_w, de_non_rec_p_w), nrow = 2)
+colnames(to_test_bias_w) <- c("Non Recombinant", "Recombinant")
+rownames(to_test_bias_w) <- c("Monogyne biased", "Polygyne biased")
+
+
+#Queens
+to_test_bias_q <- matrix(data = c(de_rec_m_q, de_rec_p_q,
+                                  de_non_rec_m_q, de_non_rec_p_q), nrow = 2)
+colnames(to_test_bias_q) <- c("Non Recombinant", "Recombinant")
+rownames(to_test_bias_q) <- c("Monogyne biased", "Polygyne biased")
+
+```
+
+Chi2 test in queens:
+```{r}
+to_test_bias_q 
+chisq.test(to_test_bias_q)
+```
+and in workers
+```{r}
+to_test_bias_w 
+chisq.test(to_test_bias_w)
 ```
