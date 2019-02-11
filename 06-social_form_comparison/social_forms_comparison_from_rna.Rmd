@@ -137,6 +137,7 @@ save(res_de_txi_w, file = res_w_name)
 ```
 
 How many loci were detected by DESeq as differentially expressed?
+
 **In workers**
 ```{r}
 sum(res_de_txi_w$padj < 0.05, na.rm = TRUE)
@@ -145,6 +146,59 @@ sum(res_de_txi_w$padj < 0.05, na.rm = TRUE)
 **In queens**
 ```{r}
 sum(res_de_txi_q$padj < 0.05, na.rm = TRUE)
+```
+**In common**
+
+```{r}
+de_genes_queens <- rownames(res_de_txi_q[which(res_de_txi_q$padj < 0.05), ])
+de_genes_workers <- rownames(res_de_txi_w[which(res_de_txi_w$padj < 0.05), ])
+
+de_genes_both <- de_genes_queens[de_genes_queens %in% de_genes_workers]
+length(de_genes_both)
+```
+** Direction of experssion **
+```{r}
+#In queens
+de_genes_queens_poly <- rownames(res_de_txi_q[which(res_de_txi_q$padj < 0.05 &
+                                                    res_de_txi_q$log2FoldChange > 0), ])
+
+de_genes_queens_mono <- rownames(res_de_txi_q[which(res_de_txi_q$padj < 0.05 &
+                                                    res_de_txi_q$log2FoldChange < 0), ])
+#In workers
+de_genes_workers_poly <- rownames(res_de_txi_w[which(res_de_txi_w$padj < 0.05 &
+                                                    res_de_txi_w$log2FoldChange > 0), ])
+
+de_genes_workers_mono <- rownames(res_de_txi_q[which(res_de_txi_w$padj < 0.05 &
+                                                    res_de_txi_w$log2FoldChange < 0), ])
+```
+
+Polygyne-biased genes in queens:
+```{r}
+length(de_genes_queens_poly)
+```
+Monogyne-biased genes in queens:
+```{r}
+length(de_genes_queens_mono)
+```
+Binomial test
+```{r}
+binom.test(length(de_genes_queens_mono), 
+           (length(de_genes_queens_mono) + length(de_genes_queens_poly)))
+```
+
+
+Polygyne-biased genes in workers:
+```{r}
+length(de_genes_workers_poly)
+```
+Monogyne-biased genes in workers:
+```{r}
+length(de_genes_workers_mono)
+```
+Binomial test
+```{r}
+binom.test(length(de_genes_workers_mono), 
+           (length(de_genes_workers_mono) + length(de_genes_workers_poly)))
 ```
 
 Plot the results in an MA plot, where the y axis is the LFCs between Polygyne and Monogyne individuals (i.e., positive values imply higher expression in polygyne colonies and vice-versa) and the x axis is the mean read count per gene. Red dots indicate genes which have been detected as significant (alpha = 0.05) according to DESeq. The differences between social forms are plotted independently for queens and workers.
