@@ -376,3 +376,64 @@ subset_parsed_counts_south_america$allele <- gsub(x = subset_parsed_counts_south
 ggplot(subset_parsed_counts_south_america, aes(x = allele, y = log(counts +1), fill = body_part)) + geom_boxplot() +
   facet_grid(. ~ gene)
 ```
+
+```{r boxplot_ratios, message = FALSE, warning = FALSE}
+#Calculate median read counts per group (gene and body part)
+agg_medians <- aggregate(total_counts ~ gene + body_part, data = parsed_counts_all_ratios_common_genes, median)
+agg_medians <- agg_medians[order(agg_medians$gene, agg_medians$body_part), ]
+colnames(agg_medians) <- c("gene", "body_part", "medians")
+
+#Add medians to the main dataset
+parsed_counts_all_ratios_common_genes <- merge(agg_medians, parsed_counts_all_ratios_common_genes)
+
+#Get the order of all genes by position in the supergene
+#Load the annotation for the gnG assembly of the Solenopsis invicta reference genome.
+si_ann <- makeTxDbFromGFF(file = "input/GCF_000188075.1_Si_gnG_genomic.gff",
+                          format="gff3")
+
+#Generate a table with the gene names and its position in the reference
+gene_ids <- keys(si_ann, "GENEID")
+gene_positions <- AnnotationDbi::select(x = si_ann,
+                                        keys = gene_ids,
+                                        columns = c("GENEID","TXCHROM", "TXSTART", "TXEND"),
+                                        keytype = "GENEID")
+
+colnames(gene_positions) <- c("gene","contig", "start", "end")
+
+#Get only the minimum start position in the scaffolds for all the transcripts per gene
+gene_positions_min <- aggregate(x = gene_positions$start, by = list(gene_positions$contig, gene_positions$gene), FUN = min)
+names(gene_positions_min) <- c("contig", "gene", "start_position")
+
+#Select genes only in the analysis
+gene_positions_min <- gene_positions_min[gene_positions_min$gene %in% unique(parsed_counts_all_ratios_common_genes$gene), ]
+
+#Sort by start position per contig
+gene_positions_min <- gene_positions_min[order(gene_positions_min$contig, gene_positions_min$start_position), ]
+
+#Sort the levels in the main dataframe
+parsed_counts_all_ratios_common_genes$gene <- factor(parsed_counts_all_ratios_common_genes$gene, 
+                                                     levels = gene_positions_min$gene)
+
+facet_labels <- c(QA = "South America\nQueen Abdomen", QH = "South America\nQueen Head", 
+                  QT = "South America\nQueen Thorax", W = "South America\nWorker Whole",
+                  whole_body_queen = "North America\nQueen Whole")
+ggplot(data = parsed_counts_all_ratios_common_genes, aes(x = gene, y = lfc)) + geom_boxplot(aes(fill = log(medians + 1)),
+                                                                                            outlier.size = 0.5) + 
+  scale_fill_gradient(name = "Logarithm of median\nread counts +1", low = hcl(15,100,75), high = hcl(195,100,75)) +
+  facet_grid(rows = vars(body_part), scales = "free", labeller = labeller(body_part = facet_labels)) +
+  geom_hline(yintercept = 0, color = "darkblue") + geom_hline(yintercept = -1, color = "darkblue", linetype = "dashed") + 
+  geom_hline(yintercept = 1, color = "darkblue", linetype = "dashed") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 10), axis.title.x = element_blank(),
+        axis.text.y = element_text(vjust = 0.5, size = 10), strip.text.y= element_text(size = 12, angle = 45),
+        legend.title = element_text(size=13, face="bold"))
+  
+
+```
+
+Interesting patterns to note emerging from this graph:
+
+* (LOC105202834)<https://www.ncbi.nlm.nih.gov/gene/?term=LOC105202834> and (LOC105202818)<https://www.ncbi.nlm.nih.gov/gene/?term=LOC105202818> differences between SB and Sb are exactly the same in all SA samples. Both genes are annotated as "cytochrome P450 4C1" Presumably the reads here mapped to the same place. Is it duplicated in NA only (if not an artifact)?
+
+* (LOC105193134)<https://www.ncbi.nlm.nih.gov/gene/?term=LOC105193134> was picked up as significant with the Fisher combination method for p values, but the LFCs estimates looked all over the place. In this graph they are clearly above 0 in every comparison and almost always above 1 LFC (2 fold difference between SB and Sb).
+
+

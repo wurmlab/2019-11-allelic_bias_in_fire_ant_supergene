@@ -156,7 +156,7 @@ de_genes_workers <- rownames(res_de_txi_w[which(res_de_txi_w$padj < 0.05), ])
 de_genes_both <- de_genes_queens[de_genes_queens %in% de_genes_workers]
 length(de_genes_both)
 ```
-** Direction of experssion **
+** Direction of expression **
 ```{r}
 #In queens
 de_genes_queens_poly <- rownames(res_de_txi_q[which(res_de_txi_q$padj < 0.05 &
@@ -170,6 +170,25 @@ de_genes_workers_poly <- rownames(res_de_txi_w[which(res_de_txi_w$padj < 0.05 &
 
 de_genes_workers_mono <- rownames(res_de_txi_q[which(res_de_txi_w$padj < 0.05 &
                                                     res_de_txi_w$log2FoldChange < 0), ])
+
+#For genes in common 
+#In queens
+res_de_txi_q_common <- res_de_txi_q[de_genes_both, ]
+
+de_genes_queens_poly_common <- rownames(res_de_txi_q_common[which(res_de_txi_q_common$padj < 0.05 &
+                                                    res_de_txi_q_common$log2FoldChange > 0), ])
+
+de_genes_queens_mono_common <- rownames(res_de_txi_q_common[which(res_de_txi_q_common$padj < 0.05 &
+                                                    res_de_txi_q_common$log2FoldChange < 0), ])
+
+#In workers
+res_de_txi_w_common <- res_de_txi_w[de_genes_both, ]
+
+de_genes_workers_poly_common <- rownames(res_de_txi_w_common[which(res_de_txi_w_common$padj < 0.05 &
+                                                    res_de_txi_w_common$log2FoldChange > 0), ])
+
+de_genes_workers_mono_common <- rownames(res_de_txi_w_common[which(res_de_txi_w_common$padj < 0.05 &
+                                                    res_de_txi_w_common$log2FoldChange < 0), ])
 ```
 
 Polygyne-biased genes in queens:
@@ -185,6 +204,11 @@ Binomial test
 binom.test(length(de_genes_queens_mono), 
            (length(de_genes_queens_mono) + length(de_genes_queens_poly)))
 ```
+Binomial test for genes in common only
+```{r}
+binom.test(length(de_genes_queens_mono_common), 
+           (length(de_genes_queens_mono_common) + length(de_genes_queens_poly_common)))
+```
 
 
 Polygyne-biased genes in workers:
@@ -199,6 +223,12 @@ Binomial test
 ```{r}
 binom.test(length(de_genes_workers_mono), 
            (length(de_genes_workers_mono) + length(de_genes_workers_poly)))
+```
+
+Binomial test for genes in common only
+```{r}
+binom.test(length(de_genes_workers_mono_common), 
+           (length(de_genes_workers_mono_common) + length(de_genes_workers_poly_common)))
 ```
 
 Plot the results in an MA plot, where the y axis is the LFCs between Polygyne and Monogyne individuals (i.e., positive values imply higher expression in polygyne colonies and vice-versa) and the x axis is the mean read count per gene. Red dots indicate genes which have been detected as significant (alpha = 0.05) according to DESeq. The differences between social forms are plotted independently for queens and workers.
