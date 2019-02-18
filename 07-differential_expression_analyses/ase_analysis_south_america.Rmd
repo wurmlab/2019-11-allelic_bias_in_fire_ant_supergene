@@ -1,7 +1,7 @@
 ---
 title: "ase_comparison_south_america.Rmd"
 author: "Carlos Martinez Ruiz"
-date: "20 de noviembre de 2018"
+date: "20 November 2018"
 output: pdf_document
 ---
 
@@ -296,7 +296,7 @@ length(which(res_deg_ar_interaction$padj < 0.05))
 The interaction effect by body part is non-significant for ANY genes in the supergene. Next model, WITHOUT interaction term, just looking directly at 
 the allele effect once the body part and colony effect have been considered
 
-``` {r no_interaction, message = FALSE}
+``` {r no_interaction, message = FALSE, warning = FALSE}
 dds_ar <- DESeqDataSetFromMatrix(countData = to_analyse_DESeq2_ar, colData = colData_ar, design = ~ colony + body_part + allele)
 #Perform the analysis replacing the sizeFactors: 
 sizeFactors(dds_ar) <- rep(1, ncol(to_analyse_DESeq2_ar))
