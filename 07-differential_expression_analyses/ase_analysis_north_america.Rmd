@@ -80,7 +80,7 @@ si_ann <- makeTxDbFromGFF(file = "input/GCF_000188075.1_Si_gnG_genomic.gff",
 
 #Generate a table with the gene names and its position in the reference
 gene_ids <- keys(si_ann, "GENEID")
-gene_positions <- select(x = si_ann,
+gene_positions <- AnnotationDbi::select(x = si_ann,
                         keys = gene_ids,
                         columns = c("GENEID","TXCHROM", "TXSTART", "TXEND"),
                         keytype = "GENEID")
@@ -356,10 +356,10 @@ lfcs_joint$cols[lfcs_joint$padj_ase < 0.05 & lfcs_joint$padj_mor < 0.05] <- "#CC
 #png("DC_sinvicta_2016-17 / 05-0216-CD-analyses / ase_plot.png",
 #    width = 10.6, height = 6.3, units = "in", res = 800)
 par(mfrow = c(1, 1), mar = c(5, 4.6, 4, 2) + 0.1)
-plot(lfcs_morandin$lfcs_mor, lfcs_ase$lfcs_ase, xlab = "Monogyne vs Polygyne",
+plot(lfcs_morandin$lfcs_mor, lfcs_ase$lfcs_ase, xlab = "Single vs Multiple",
      ylab = "b vs B", xlim = c(-7, 7), font.lab = 2, cex.axis = 2, cex.lab = 2,
      cex.main = 2.5, pch = 16, col = lfcs_joint$cols)
-legend("bottomleft", legend = c("No DE", "DE variants", "DE both", "DE social form"),
+legend("bottomleft", legend = c("No DEG", "DEG variants", "DEG both", "DEG social form"),
        fill = unique(lfcs_joint$cols))
 abline(h = 0, col = "red", lwd = 4)
 abline(v = 0, col = "red", lwd = 4)
@@ -380,18 +380,18 @@ lfcs_joint_mor_sorted$mor_halves <- NA
 
 lfcs_joint_mor_sorted$mor_halves[1:round((1 / 2 * nrow(lfcs_joint_mor_sorted)))] <- "HiM"
 lfcs_joint_mor_sorted$mor_halves[(round(1 / 2 * nrow(lfcs_joint_mor_sorted)) + 1):nrow(lfcs_joint_mor_sorted)] <- "HiP"
-#lfcs_joint_mor_sorted$mor_halves[lfcs_joint_mor_sorted$lfcs_mor < 0] <- "HiM"
-#lfcs_joint_mor_sorted$mor_halves[lfcs_joint_mor_sorted$lfcs_mor > 0] <- "HiP"
+lfcs_joint_mor_sorted$mor_halves[lfcs_joint_mor_sorted$lfcs_mor < 0] <- "HiM"
+lfcs_joint_mor_sorted$mor_halves[lfcs_joint_mor_sorted$lfcs_mor > 0] <- "HiP"
 
 #Now it's just a matter of comparing the B vs b distributions of LFCs between quarters
-#ggplot(lfcs_joint_mor_sorted, aes(x = lfcs_ase, fill = mor_halves)) + geom_density(alpha = 0.3) + theme_bw() +
-#  labs(x = "Logarithm fold change between variants", y = "Density") +
-#  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
-#        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
-#  theme(axis.title.x = element_text(face = "bold", size = 30),
-#        axis.text.x  = element_text(angle = 90, vjust = 0.5, size = 25)) +
-#  theme(axis.title.y = element_text(face = "bold", size = 30),
-#        axis.text.y  = element_text(angle = 90, vjust = 0.5, size = 25))
+ggplot(lfcs_joint_mor_sorted, aes(x = lfcs_ase, fill = mor_halves)) + geom_density(alpha = 0.3) + theme_bw() +
+  labs(x = "Logarithm fold change between variants", y = "Density") +
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
+  theme(axis.title.x = element_text(face = "bold", size = 30),
+        axis.text.x  = element_text(angle = 90, vjust = 0.5, size = 25)) +
+  theme(axis.title.y = element_text(face = "bold", size = 30),
+        axis.text.y  = element_text(angle = 90, vjust = 0.5, size = 25))
 
 #Kolmogorov-Smirnov tests between quarters to see how different the distributions are
 ks.test(lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_halves == "HiM"],
