@@ -422,10 +422,13 @@ ggplot(data = parsed_counts_all_ratios_common_genes, aes(x = gene, y = lfc)) + g
   scale_fill_gradient(name = "Logarithm of median\nread counts +1", low = hcl(15,100,75), high = hcl(195,100,75)) +
   facet_grid(rows = vars(body_part), scales = "free", labeller = labeller(body_part = facet_labels)) +
   geom_hline(yintercept = 0, color = "darkblue") + geom_hline(yintercept = -1, color = "darkblue", linetype = "dashed") + 
-  geom_hline(yintercept = 1, color = "darkblue", linetype = "dashed") +
+  geom_hline(yintercept = 1, color = "darkblue", linetype = "dashed") + labs(y = "Log2 fold differences") +
+  #geom_rect(aes(xmin = sig_genes_both[1], xmax = sig_genes_both[1], ymin = -8, ymax = 8),
+  #          fill = "transparent", color = "red", size = 1.5) + 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 10), axis.title.x = element_blank(),
-        axis.text.y = element_text(vjust = 0.5, size = 10), strip.text.y= element_text(size = 12, angle = 45),
-        legend.title = element_text(size=13, face="bold"))
+        axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_text(size = 14, face = "bold"),
+        strip.text.y= element_text(size = 12, angle = 45), legend.title = element_text(size=13, face="bold"),
+        legend.text = element_text(size=12))
   
 
 ```
