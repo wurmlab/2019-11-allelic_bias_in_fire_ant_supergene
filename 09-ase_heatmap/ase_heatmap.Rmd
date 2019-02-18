@@ -410,6 +410,26 @@ gene_positions_min <- gene_positions_min[gene_positions_min$gene %in% unique(par
 #Sort by start position per contig
 gene_positions_min <- gene_positions_min[order(gene_positions_min$contig, gene_positions_min$start_position), ]
 
+#Mark the genes with significant DE in the different populations and in both
+sig_genes_na <- rownames(results_north_america_subset[which(results_north_america_subset$padj < 0.05), ])
+
+sig_genes_sa <- rownames(results_south_america_subset[which(results_south_america_subset$padj < 0.05), ])
+
+parsed_counts_all_ratios_common_genes$gene <- as.character(parsed_counts_all_ratios_common_genes$gene)
+
+parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_both] <- paste0(parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_both], "*+")
+
+parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_na] <- paste0(parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_na], "*")
+
+parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_sa] <- paste0(parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_sa], "+")
+
+#Mark in both datasets
+gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_both] <- paste0(gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_both], "*+")
+
+gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_na] <- paste0(gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_na], "*")
+
+gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_sa] <- paste0(gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_sa], "+")
+
 #Sort the levels in the main dataframe
 parsed_counts_all_ratios_common_genes$gene <- factor(parsed_counts_all_ratios_common_genes$gene, 
                                                      levels = gene_positions_min$gene)
@@ -429,8 +449,6 @@ ggplot(data = parsed_counts_all_ratios_common_genes, aes(x = gene, y = lfc)) + g
         axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_text(size = 14, face = "bold"),
         strip.text.y= element_text(size = 12, angle = 45), legend.title = element_text(size=13, face="bold"),
         legend.text = element_text(size=12))
-  
-
 ```
 
 Interesting patterns to note emerging from this graph:
