@@ -6,7 +6,7 @@ output: pdf_document
 ---
 
 ```{r setup, include = FALSE, message = FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE)#, fig.path = 'results/', fig.width = 60, fig.height = 30)
 ```
 ```{r libraries, echo = FALSE, message = FALSE, warning = FALSE}
 #Load all libraries
@@ -457,4 +457,68 @@ Interesting patterns to note emerging from this graph:
 
 * (LOC105193134)<https://www.ncbi.nlm.nih.gov/gene/?term=LOC105193134> was picked up as significant with the Fisher combination method for p values, but the LFCs estimates looked all over the place. In this graph they are clearly above 0 in every comparison and almost always above 1 LFC (2 fold difference between SB and Sb).
 
+```{r save_boxplot, message = FALSE, warning = FALSE}
 
+p1 <- ggplot(data = parsed_counts_all_ratios_common_genes, aes(x = gene, y = lfc)) + geom_boxplot(aes(fill = log(medians + 1)),
+                                                                                                      outlier.size = 0.5) + 
+              scale_fill_gradient(name = "Logarithm of median\nread counts +1", low = hcl(15,100,75), high = hcl(195,100,75)) +
+              facet_grid(rows = vars(body_part), scales = "free", labeller = labeller(body_part = facet_labels)) +
+              geom_hline(yintercept = 0, color = "darkblue") + geom_hline(yintercept = -1, color = "darkblue", linetype = "dashed") + 
+              geom_hline(yintercept = 1, color = "darkblue", linetype = "dashed") + labs(y = "Log2 fold differences") +
+              #geom_rect(aes(xmin = sig_genes_both[1], xmax = sig_genes_both[1], ymin = -8, ymax = 8),
+              #          fill = "transparent", color = "red", size = 1.5) + 
+              theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 10), axis.title.x = element_blank(),
+                    axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_text(size = 14, face = "bold"),
+                    strip.text.y= element_text(size = 12, angle = 45), legend.title = element_text(size=13, face="bold"),
+                    legend.text = element_text(size=12))
+
+ggsave(filename = "results/boxplot_lfcs_common.pdf", plot = p1, device = "pdf", height = 30, width = 60, units = "cm")
+```
+
+Same plot with North American populations only
+
+```{r boxplot_ratios_north_america, message = FALSE, warning = FALSE}
+#Calculate median read counts per group (gene and body part)
+agg_medians_north_america <- aggregate(total_counts ~ gene + body_part, data = parsed_counts_north_america_ratio, median)
+agg_medians_north_america <- agg_medians_north_america[order(agg_medians_north_america$gene, agg_medians_north_america$body_part), ]
+colnames(agg_medians_north_america) <- c("gene", "body_part", "medians")
+
+#Add medians to the main dataset
+parsed_counts_north_america_ratio <- merge(agg_medians_north_america, parsed_counts_north_america_ratio)
+
+#Get only the minimum start position in the scaffolds for all the transcripts per gene
+gene_positions_min_north_america <- aggregate(x = gene_positions$start, by = list(gene_positions$contig, gene_positions$gene), FUN = min)
+names(gene_positions_min_north_america) <- c("contig", "gene", "start_position")
+
+#Select genes only in the analysis
+gene_positions_min_north_america <- gene_positions_min_north_america[gene_positions_min_north_america$gene %in% unique(parsed_counts_north_america_ratio$gene), ]
+
+#Sort by start position per contig
+gene_positions_min_north_america <- gene_positions_min_north_america[order(gene_positions_min_north_america$contig, gene_positions_min_north_america$start_position), ]
+
+#Mark the genes with significant DE in the different populations and in both
+sig_genes_na_all <- rownames(results_north_america[which(results_north_america$padj < 0.05), ])
+gene_positions_min_north_america$gene[gene_positions_min_north_america$gene %in% sig_genes_na_all] <- paste0(gene_positions_min_north_america$gene[gene_positions_min_north_america$gene %in% sig_genes_na_all], "*")
+parsed_counts_north_america_ratio$gene <- as.character(parsed_counts_north_america_ratio$gene)
+parsed_counts_north_america_ratio$gene[parsed_counts_north_america_ratio$gene %in% sig_genes_na_all] <- paste0(parsed_counts_north_america_ratio$gene[parsed_counts_north_america_ratio$gene %in% sig_genes_na_all], "*")
+
+#Sort the levels in the main dataframe
+parsed_counts_north_america_ratio$gene <- factor(parsed_counts_north_america_ratio$gene, 
+                                                 levels = gene_positions_min_north_america$gene)
+
+p2 <- ggplot(data = parsed_counts_north_america_ratio, aes(x = gene, y = lfc)) + geom_boxplot(aes(fill = log(medians + 1)),
+                                                                                              outlier.size = 0.5) + 
+              scale_fill_gradient(name = "Logarithm of median\nread counts +1", low = hcl(15,100,75), high = hcl(195,100,75)) +
+              geom_hline(yintercept = 0, color = "darkblue") + geom_hline(yintercept = -1, color = "darkblue", linetype = "dashed") + 
+              geom_hline(yintercept = 1, color = "darkblue", linetype = "dashed") + labs(y = "Log2 fold differences") +
+              #geom_rect(aes(xmin = sig_genes_both[1], xmax = sig_genes_both[1], ymin = -8, ymax = 8),
+              #          fill = "transparent", color = "red", size = 1.5) + 
+              theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 5), axis.title.x = element_blank(),
+                    axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_text(size = 14, face = "bold"),
+                    strip.text.y= element_text(size = 12, angle = 45), legend.title = element_text(size=13, face="bold"),
+                    legend.text = element_text(size=12))
+
+p2
+ggsave(filename = "results/boxplot_lfcs_north_america.png", plot = p2, device = "png", height = 60, width = 120, units = "cm")
+
+```
