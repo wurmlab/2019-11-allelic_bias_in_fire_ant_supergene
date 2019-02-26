@@ -17,6 +17,7 @@ library(GenomicRanges)
 library(GenomicFeatures)
 library(ggplot2)
 library(plyr)
+library(lmerTest)
 version
 
 for (package in (.packages()) ) {
@@ -377,6 +378,69 @@ ggplot(subset_parsed_counts_south_america, aes(x = allele, y = log(counts +1), f
   facet_grid(. ~ gene)
 ```
 
+## lmer for NA vs SA genes, are there significant common patterns in expression differences?
+
+The Fisher's method for p values combination only takes the p values, and is blind to any other information like, for instance, whether the direction of expression is the same in both comparisons. 
+To overcome this, I will run an lme that will account for tissue and population, a combined test that cannot be run on DESeq. The output should tell us which genes are DE between variants across populations.
+
+```{r lmer_na_vs_sa, message = FALSE}
+
+#Normalise the LFCs between factors using Z scores (center in normal distribution)
+#Calculate the mean and sd lfcs per body part/population
+agg_means <- aggregate(lfc ~ body_part, data = parsed_counts_all_ratios_common_genes, mean)
+agg_sd <- aggregate(lfc ~ body_part, data = parsed_counts_all_ratios_common_genes, sd)
+
+for_z_scores <- merge(agg_means, agg_sd, by = "body_part")
+colnames(for_z_scores) <- c("body_part", "mean_body_part", "sd_body_part")
+
+#Add means and sd to the main dataset
+parsed_counts_all_ratios_common_genes <- merge(for_z_scores, parsed_counts_all_ratios_common_genes)
+
+#Get the normalised lfcs
+parsed_counts_all_ratios_common_genes$lfc_norm <- (parsed_counts_all_ratios_common_genes$lfc - parsed_counts_all_ratios_common_genes$mean_body_part) /
+                                                   parsed_counts_all_ratios_common_genes$sd_body_part
+
+#Get an estimate of the relationship between read counts and its effect on LFC variance
+results_north_america_df <- as.data.frame(results_north_america)
+plot(log(results_north_america_df$baseMean), 1 / (results_north_america_df$lfcSE)^2)
+#Looks quadratic?
+yvals <- 1 / (results_north_america_df$lfcSE) ^ 2 
+xvals <- log(results_north_america_df$baseMean)
+se_reads <- lm(yvals ~ xvals + I(xvals ^ 2) + I(xvals ^ 3))
+
+plot(xvals, yvals)
+re_order <- order(xvals) 
+lines(xvals[re_order], fitted(se_reads)[re_order])
+
+#Pretty good fit. Use the model between log of read counts and variance to caculate the weights for the lfcs estimates 
+weights_model <- predict(se_reads,
+                         data.frame(xvals = log(parsed_counts_all_ratios_common_genes$total_counts + 0.1)))
+#Make sure there are no 0s or negative values for the model (otherwise it won't converge). This removes replicates for genes that
+#convey no information anyway
+for_model <- parsed_counts_all_ratios_common_genes
+for_model$weights <- weights_model 
+for_model <- for_model[for_model$weights > 0, ]
+
+#Run model
+lme_populations <- lmer(lfc_norm ~ 0 + gene * population + (1|body_part:gene), data = for_model,
+                        weights = weights)
+
+# extract coefficients
+coefs <- data.frame(coef(summary(lme_populations)))
+#Adjust p values
+coefs$padj <- p.adjust(coefs$Pr...t.., method = "BH")
+#Significant genes (only those with main gene effects are considered)
+sig_genes_both_lme <- coefs[coefs$padj < 0.05, ]
+
+#Get the names of the significant genes from the model (main effects only)
+sig_genes_both_lme <- rownames(sig_genes_both_lme)
+#Get main effects only
+sig_genes_both_lme <- sig_genes_both_lme[!grepl(pattern = ":population", x = sig_genes_both_lme)]
+#Clean the names
+sig_genes_both_lme <- gsub(pattern = "gene", replacement = "", x = sig_genes_both_lme)
+  
+```
+
 ```{r boxplot_ratios, message = FALSE, warning = FALSE}
 #Calculate median read counts per group (gene and body part)
 agg_medians <- aggregate(total_counts ~ gene + body_part, data = parsed_counts_all_ratios_common_genes, median)
@@ -417,14 +481,14 @@ sig_genes_sa <- rownames(results_south_america_subset[which(results_south_americ
 
 parsed_counts_all_ratios_common_genes$gene <- as.character(parsed_counts_all_ratios_common_genes$gene)
 
-parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_both] <- paste0(parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_both], "*+")
+parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_both_lme] <- paste0(parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_both_lme], "*+")
 
 parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_na] <- paste0(parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_na], "*")
 
 parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_sa] <- paste0(parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_sa], "+")
 
 #Mark in both datasets
-gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_both] <- paste0(gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_both], "*+")
+gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_both_lme] <- paste0(gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_both_lme], "*+")
 
 gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_na] <- paste0(gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_na], "*")
 
@@ -522,3 +586,7 @@ p2
 ggsave(filename = "results/boxplot_lfcs_north_america.png", plot = p2, device = "png", height = 60, width = 120, units = "cm")
 
 ```
+
+
+
+
