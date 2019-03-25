@@ -291,7 +291,7 @@ over_e_lb <- length(which(res_Bb$log2FoldChange < 0 & res_Bb$padj < 0.05))
 
 #How many DE genes over-expressed in SB?
 over_e_bb <- length(which(res_Bb$log2FoldChange > 0 & res_Bb$padj < 0.05))
-#15
+#16
 
 #Total genes in the supergene region:
 total_genes_Bb <- length(res_Bb$pvalue)
