@@ -455,9 +455,9 @@ ggplot(lfcs_joint_nona, aes(x = lfcs_mor, y = lfcs_ase)) + geom_density_2d() +
 #Select only values which are non significant
 lfcs_joint_nonsig <- subset(lfcs_joint_nona, subset = padj_ase > 0.05 & padj_mor > 0.05)
 #Select only values which are significant between social forms
-lfcs_joint_sig_soc <- subset(lfcs_joint_nona, subset = padj_mor < 0.05)
+lfcs_joint_sig_soc <- subset(lfcs_joint_nona, subset = padj_mor < 0.05 & padj_ase > 0.05)
 #Select only values which are significant between variants
-lfcs_joint_sig_ase <- subset(lfcs_joint_nona, subset = padj_ase < 0.05)
+lfcs_joint_sig_ase <- subset(lfcs_joint_nona, subset = padj_ase < 0.05 & padj_mor > 0.05)
 #Select only values which are significant in both comparisons
 lfcs_joint_sig_both <- subset(lfcs_joint_nona, subset = padj_ase < 0.05 & padj_mor < 0.05)
 
@@ -479,3 +479,34 @@ for(sig in sig_levels){
 }
 
 ```
+
+
+## Gene-specific dosage compensation
+
+Some of the expression differences between variants could be due to gene-specifc dosage compensation. If this is the case, the pattern should be low expression in Sb (and hence high expression in SB) and 
+no differential expression between social forms. Overall this should be transalted in a general bias towards SB expression once the significant genes in both comparisons have been removed. This seems to be the
+case in the 2D density plot, but this needs further testing. A chi2 test or a similar test to that of the Sb enrichment should do the trick. 
+
+```{r dosage_compensation_test, message = FALSE}
+
+#Median lfcs should be biased towards SB
+median(lfcs_joint_sig_ase$lfcs_ase)
+wilcox.test(lfcs_joint_sig_ase$lfcs_ase)
+
+#Differences in lfc medians
+lfcs_joint_sig_ase$bias <- ifelse(lfcs_joint_sig_ase$lfcs_ase > 0, "SB", "Sb")
+ggplot(data = lfcs_joint_sig_ase, aes(x = bias, y = abs(lfcs_ase))) + geom_boxplot()
+
+ggplot(data = lfcs_joint_sig_ase, aes(x = abs(lfcs_ase), fill = bias)) + geom_density(alpha = 0.4)
+
+
+lfcs_joint_sig_ase$bias <- ifelse(lfcs_joint_sig_ase$lfcs_ase > 0, "SB", "Sb")
+ggplot(data = lfcs_joint_sig_ase, aes(x = bias, y = abs(lfcs_ase))) + geom_boxplot()
+
+#Bimoial test
+binom.test(nrow(lfcs_joint_sig_ase[lfcs_joint_sig_ase$bias == "SB", ]), nrow(lfcs_joint_sig_ase))
+
+```
+
+Both the wilcoxon test for the median and the binomial test are significant. Genes which are only differentially expressed between variants (but not between social forms) tend to be more highly expressed in the SB variant.
+This points at gene-level dosage compensation.
