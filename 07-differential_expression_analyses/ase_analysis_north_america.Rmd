@@ -221,6 +221,9 @@ to_analyse_B <- matrix(data = to_analyse_agg$count_ref, ncol = length(unique(to_
 
 colnames(to_analyse_B) <- paste(unique(to_analyse_agg$sample), "_B", sep = "")
 rownames(to_analyse_B) <- unique(to_analyse_agg$gene)
+#Select only genes which have 5 read counts or more
+B_median_count <- apply(to_analyse_B, 1, median)
+B_genes_to_keep <- rownames(to_analyse_B)[B_median_count >=5]
 
 #Generate matrix for b read counts:
 to_analyse_b <- matrix(data = to_analyse_agg$count_alt,
@@ -230,10 +233,17 @@ colnames(to_analyse_b) <- paste(unique(to_analyse_agg$sample),
                                 "_b", sep = "")
 rownames(to_analyse_b) <- unique(to_analyse_agg$gene)
 
+#Select only genes which have 5 read counts or more
+b_median_count <- apply(to_analyse_b, 1, median)
+b_genes_to_keep <- rownames(to_analyse_b)[b_median_count >=5]
 #Merge the two matrixes into a single one, get data ready for DESeq2:---------------------------------------------------------------------------
 
 to_analyse_DESeq2_polyq <- cbind(to_analyse_b, to_analyse_B)
 
+#Keep only the genes with 5 read counts or more in either variant
+genes_to_keep_total <- unique(c(b_genes_to_keep, B_genes_to_keep))
+
+#to_analyse_DESeq2_polyq <- to_analyse_DESeq2_polyq[genes_to_keep_total, ]
 #Generate the colData data frame for DESeq2
 
 allele <- gsub(x = colnames(to_analyse_DESeq2_polyq),
@@ -252,7 +262,7 @@ The analysis for the allele specific expression between the SB and Sb variants i
 to_analyse_DESeq2_polyq <- round(to_analyse_DESeq2_polyq)
 #Load the data into DESeq2
 dds_Bb <- DESeqDataSetFromMatrix(countData = to_analyse_DESeq2_polyq,
-                                 colData = colData_Bb, design = ~ sample + allele)
+                                 colData = colData_Bb, design = ~ allele)
 sizeFactors(dds_Bb) <- rep(1, ncol(to_analyse_DESeq2_polyq))
 #Perform the analysis:
 dds_Bb_DE <- DESeq(dds_Bb)
@@ -260,7 +270,7 @@ dds_Bb_DE <- DESeq(dds_Bb)
 save(dds_Bb_DE, file = "results/dds_Sb_vs_SB_north_america.RData")
 
 #Get results:
-res_Bb <- results(dds_Bb_DE, contrast = c("allele", "B", "b"))
+res_Bb <- results(dds_Bb_DE)#, contrast = c("allele", "B", "b"))
 
 #Let's have a look:
 
@@ -378,6 +388,10 @@ Test for enrichment in Sb for polygyne biased genes, via a chi squared test, and
 ###### Select the Morandin LFCs from 2 sections of the dataset
 #Get rid of the NAs first
 lfcs_joint_nona <- lfcs_joint[!is.na(lfcs_joint$lfcs_mor), ]
+lfcs_joint_nona <- lfcs_joint_nona[!is.na(lfcs_joint_nona$padj_ase), ]
+lfcs_joint_nona <- lfcs_joint_nona[!is.na(lfcs_joint_nona$padj_mor), ]
+
+
 #Sort the new dataset by morandin LFCs
 lfcs_joint_mor_sorted <- lfcs_joint_nona[order(lfcs_joint_nona$lfcs_mor), ]
 
@@ -510,3 +524,28 @@ binom.test(nrow(lfcs_joint_sig_ase[lfcs_joint_sig_ase$bias == "SB", ]), nrow(lfc
 
 Both the wilcoxon test for the median and the binomial test are significant. Genes which are only differentially expressed between variants (but not between social forms) tend to be more highly expressed in the SB variant.
 This points at gene-level dosage compensation.
+
+
+## Plot all significant genes to check variant effect visually
+
+DESeq2 gives a lsit of differentially expressed genes between variants. Some of those are based on very low read counts on average. The following plot can be use to assess visually those differences.
+
+```{r variant_differences_plot, message = FALSE}
+
+#Select significant genes
+sig_genes <- rownames(res_Bb[which(res_Bb$padj < 0.05), ])
+counts_specific_genes <- counts(dds_Bb, norm = TRUE)[sig_genes, ]
+
+
+specific_genes <- rep(rownames(counts_specific_genes), ncol(counts_specific_genes))
+samples <- rep(colnames(counts_specific_genes), each = nrow(counts_specific_genes))
+variant <- gsub(pattern = ".+_", replacement = "", x = samples)
+
+specific_genes_parsed <- data.frame(c(counts_specific_genes), specific_genes, samples, variant)
+
+colnames(specific_genes_parsed) <- c("counts", "genes", "samples", "variant")
+
+ggplot(data = specific_genes_parsed, aes(x = variant, y = counts)) + geom_violin() + facet_grid(. ~ genes) +
+  geom_jitter(shape=16, position=position_jitter(0.2))
+
+```
