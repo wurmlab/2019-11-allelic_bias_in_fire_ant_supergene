@@ -82,6 +82,10 @@ gene_positions <- AnnotationDbi::select(x = si_ann,
 
 colnames(gene_positions) <- c("gene","contig", "start", "end")
 
+#Remove the last exon of gene LOC105202834, this gene is misanotated in gnG and it causes mis-assignment of reads
+#The number in the gene positions data frame is replaced with the position of the penultimate exon
+gene_positions[gene_positions$gene =="LOC105202834", ]$end <- 220646
+
 #Generates a GRanges object. Same as before, but this time the metadata refers to the gene name directly
 gene_positions_gr <- GRanges(Rle(gene_positions$contig),
                                    IRanges(start = gene_positions$start,
@@ -331,13 +335,13 @@ Additional tests to check for enrichment: Binomial test for significantly DE gen
 ```{r enrichment_tests, message = FALSE}
 #How many DE genes in total?
 de_ase_ar <- length(which(res_deg_ar$padj < 0.05))
-#13
+#12
 
 #How many in each variant?
 de_ase_ar_lb <- length(which(res_deg_ar$padj < 0.05 & res_deg_ar$log2FoldChange < 0))
 #6
 de_ase_ar_bb <- length(which(res_deg_ar$padj < 0.05 & res_deg_ar$log2FoldChange > 0))
-#7
+#6
 
 #Total genes in the supergene region:
 
@@ -534,5 +538,28 @@ chisq.test(to_test_chi_sb)
 fisher.test(to_test_chi_sb)
 ```
 
+## Plot all significant genes to check variant effect visually
 
+DESeq2 gives a lsit of differentially expressed genes between variants. Some of those are based on very low read counts on average. The following plot can be use to assess visually those differences.
+
+```{r variant_differences_plot, message = FALSE}
+
+#Select significant genes
+sig_genes <- rownames(res_deg_ar[which(res_deg_ar$padj < 0.05), ])
+counts_specific_genes <- counts(dds_ar, norm = TRUE)[sig_genes, ]
+
+
+specific_genes <- rep(rownames(counts_specific_genes), ncol(counts_specific_genes))
+samples <- rep(colnames(counts_specific_genes), each = nrow(counts_specific_genes))
+variant <- gsub(pattern = ".+_", replacement = "", x = samples)
+body_part_sp <- gsub(x = samples, pattern = "([0-9]+[BC]?Q?)([A-Z])(_[Bb])", replacement = "\\2")
+
+specific_genes_parsed <- data.frame(c(counts_specific_genes), specific_genes, samples, variant, body_part_sp)
+
+colnames(specific_genes_parsed) <- c("counts", "genes", "samples", "variant", "body_part")
+
+ggplot(data = specific_genes_parsed, aes(x = variant, y = log(counts + 1), fill = body_part)) + geom_violin() + facet_grid(. ~ genes) +
+  geom_jitter(position = position_dodge(1))
+
+```
 
