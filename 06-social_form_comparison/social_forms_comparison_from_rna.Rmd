@@ -5,6 +5,9 @@ date: "31 October 2018"
 output: pdf_document
 ---
 
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path = 'results/')
+```
 ```{r libraries, echo = FALSE, message = FALSE}
 #Load all libraries
 library(tximport)
@@ -263,15 +266,16 @@ ann_ranges <- unlist(ann_ranges)
 #Create a GRanges object from the 'regions' table
 regions_ranges <- GRanges(Rle(regions$scaffold), IRanges(start = regions$start,
                                                          end = regions$end),
-                          lg = regions$lg, region = regions$region)
+                          lg = regions$lg, region = regions$region, linkage_group = regions$lg)
 
 #Create a GRanges object intersecting each gene to its corresponding region
 gene_region <- mergeByOverlaps(regions_ranges, ann_ranges, ignore.strand = TRUE)
 
 #Parse the 'gene_region' GRanges object to make it useful
 loc_genes_region           <- data.frame(gene_region@listData$region,
+                                         gene_region@listData$linkage_group,
                                          gene_region@listData$ann_ranges@ranges@NAMES)
-colnames(loc_genes_region) <- c("region", "loc_id")
+colnames(loc_genes_region) <- c("region", "linkage_group", "loc_id")
 loc_genes_region           <- unique(loc_genes_region)
 ```
 
@@ -402,9 +406,11 @@ p1 <- ggplot(data = to_plot_q, aes(x = region, y = percentage, fill = form)) +
   geom_hline(yintercept = expected_percent_q, colour = "red") +
   theme_bw() + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank(),
                      legend.title = element_blank()) +
-  scale_x_discrete(name = "") + scale_y_continuous(name = "Percentage of DE loci",
+ scale_x_discrete(name = "") + scale_y_continuous(name = "% differentially expressed genes",
                                                    limits = c(0, 8)) +
-  scale_fill_manual(values = c("brown4", "cornflowerblue"))
+  scale_fill_manual(values = c("brown4", "cornflowerblue"), labels = c("Single-queen\nbias", "Multiple-queen\nbias")) +
+  theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16),
+        axis.title.y = element_text(size = 20), legend.text = element_text(size = 16))
 
 
 #Same plot, for workers
@@ -458,9 +464,11 @@ p2 <- ggplot(data = to_plot_w, aes(x = region, y = percentage, fill = form)) +
   geom_hline(yintercept = expected_percent_w, colour = "red") +
   theme_bw() + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank(),
                      legend.title = element_blank()) +
-  scale_x_discrete(name = "") + scale_y_continuous(name = "Percentage of DE loci",
+  scale_x_discrete(name = "") + scale_y_continuous(name = "% of differentially expressed genes\nbetween social forms",
                                                    limits = c(0, 8)) +
-  scale_fill_manual(values = c("brown4", "cornflowerblue"))
+  scale_fill_manual(values = c("brown4", "cornflowerblue"), labels = c("Single-queen\nbias", "Multiple-queen\nbias")) +
+  theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16),
+        axis.title.y = element_text(size = 20))
 ```
 
 The red lines in the plots show the proportion of socially biased loci expected by randomness in workers or queens. The blue portion of each bar represents the proportion of those socially biased loci that are more highly expressed in polygyne individuals and vice-versa for the burgundy portion.
@@ -546,3 +554,187 @@ and in workers
 to_test_bias_w 
 chisq.test(to_test_bias_w)
 ```
+
+## Plot proportion of DE genes by linkage group for queens
+
+
+```{r, splot_by_lg, include = FALSE}
+#This chunk will plot the proportion of DE genes per linkage group, with lg 16 divided into supergene and recombining region.
+#First, the two regions of lg need to be separated out as two distinct regions
+
+lg16_regions <- grep(pattern = "lg16", x = loc_genes_region$linkage_group)
+loc_genes_region$linkage_group <- as.character(loc_genes_region$linkage_group)
+loc_genes_region$linkage_group[lg16_regions] <- paste(loc_genes_region$linkage_group[lg16_regions],
+                                                      loc_genes_region$region[lg16_regions], sep = "_")  
+
+
+#Get the number of DE genes (with M and P bias) in each linkage group
+linkage_groups <- unique(loc_genes_region$linkage_group)
+loc_genes_region$linkage_group <- as.factor(loc_genes_region$linkage_group)
+
+to_plot_by_lg <- matrix(ncol = 5)
+colnames(to_plot_by_lg) <- c("percentage", "region", "form", "nb_genes", "nb_de_genes")
+for(lg in linkage_groups){
+  #Number of significant genes, M bias
+  significant_mono <- length(which(loc_genes_region$linkage_group == lg &
+                             loc_genes_region$de_q == "significant" &
+                             loc_genes_region$expr_dir_q == "Mono"))
+  
+  #Number of significant genes, P bias
+  significant_poly <- length(which(loc_genes_region$linkage_group == lg &
+                             loc_genes_region$de_q == "significant" &
+                             loc_genes_region$expr_dir_q == "Poly"))
+  
+  #Number of non_significant genes
+  non_significant <- length(which(loc_genes_region$linkage_group == lg &
+                             loc_genes_region$de_q == "non-significant"))
+  
+  #Total number of genes in each linkage group
+  total_nb <- sum(significant_mono, significant_poly, non_significant)
+  
+  #Total number of DE genes per linkage group
+  total_nb_de <- sum(significant_mono, significant_poly)
+
+  #Get proportions
+  de_percent_mono <- significant_mono / (non_significant + significant_mono + significant_poly) * 100
+  de_percent_poly <- significant_poly / (non_significant + significant_mono + significant_poly) * 100
+  
+  #Add to data frame
+  percents <- c(de_percent_poly, de_percent_mono)
+  to_add <- matrix(c(percents,
+                     rep(lg, 2),
+                     c("poly", "mono"),
+                     rep(total_nb, 2),
+                     rep(total_nb_de, 2)),
+                   ncol = 5)
+  to_plot_by_lg <- rbind(to_plot_by_lg, to_add)
+}
+#Remove NAs fromm the first row
+to_plot_by_lg <- to_plot_by_lg[!is.na(to_plot_by_lg[, 1]), ]
+
+to_plot_by_lg <- as.data.frame(to_plot_by_lg)
+to_plot_by_lg$percentage <- as.numeric(as.character(to_plot_by_lg$percentage))
+to_plot_by_lg$nb_genes <- as.numeric(as.character(to_plot_by_lg$nb_genes))
+to_plot_by_lg$nb_de_genes <- as.numeric(as.character(to_plot_by_lg$nb_de_genes))
+to_plot_by_lg$region <- factor(to_plot_by_lg$region, levels = unique(to_plot_by_lg$region))
+
+#Barplot
+p3 <- ggplot(data = to_plot_by_lg, aes(x = region, y = percentage, fill = form)) +
+  geom_bar(stat = "identity") +
+  geom_hline(yintercept = expected_percent_w, colour = "red") +
+  theme_bw() + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank(),
+                     legend.title = element_blank()) +
+  scale_x_discrete(name = "") + scale_y_continuous(name = "% of differentially expressed genes\nbetween social forms",
+                                                   limits = c(0, 8)) +
+  scale_fill_manual(values = c("brown4", "cornflowerblue"), labels = c("Single-queen\nbias", "Multiple-queen\nbias")) +
+  theme(axis.text.x = element_text(size = 16, angle = 90), axis.text.y = element_text(size = 16),
+        axis.title.y = element_text(size = 20))
+
+#Run Chi2 tests for all columns (linkage group vs total proportion of DE vs non-DE)
+total_nb_genes <- sum(to_plot_by_lg$nb_genes)/2
+total_nb_de_genes <- sum(to_plot_by_lg$nb_de_genes)/2
+to_plot_by_lg$pvalue <- NULL
+for(lg in linkage_groups){
+  lg_to_test <- to_plot_by_lg[to_plot_by_lg$region == lg, ]
+  total_genes_lg <- unique(lg_to_test$nb_genes)
+  total_genes_de_lg <- unique(lg_to_test$nb_de_genes)
+  
+  to_test <- matrix(data = c(total_genes_de_lg, (total_genes_lg - total_genes_de_lg),
+                             total_nb_de_genes, (total_nb_genes - total_nb_de_genes)), nrow = 2)
+  
+  p_value <- chisq.test(to_test)$p.value
+  to_plot_by_lg$pvalue[to_plot_by_lg$region == lg] <- p_value
+  }
+
+to_plot_by_lg$padj <- p.adjust(to_plot_by_lg$pvalue, method = "BH")
+```
+
+Run a quasi-binomial model to check the enrichment of the supergene compared to the rest of linkage groups
+
+```{r, glm_enrichment, include = FALSE}
+
+#Extract number of differentially expressed genes as a matrix for the dependent variable of the glm
+de_genes_ratio <- matrix(c(to_plot_by_lg$nb_de_genes, to_plot_by_lg$nb_genes), ncol = 2)
+de_genes_ratio <- unique(de_genes_ratio)
+colnames(de_genes_ratio) <- c("de_genes", "all_genes")
+
+#Extract the predicting variables: lg names and a binary variable for supergene/non-supergene
+supergene_bin <- as.factor(ifelse(linkage_groups == "lg16_supergene", 2, 1))
+linkage_groups <- as.factor(linkage_groups)
+
+#Run the model
+supergene_enrichment <- glm(de_genes_ratio ~ supergene_bin + linkage_groups, family = "quasibinomial")
+
+```
+
+
+## Plot enrichment and differences poly/mono separately
+
+Plot the enrichment of the supergene compared to the rest of the genome and 
+
+```{r, plot_enrichment_social_forms_diffs, include = FALSE}
+
+to_plot_q$region <- factor(to_plot_q$region, levels = c("Supergene",  "Rest of the genome"))
+
+penrich <- ggplot(data = to_plot_q, aes(x = region, y = percentage)) +
+              geom_bar(stat = "identity", fill = "steelblue") +
+              theme_bw() + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank(),
+                                 legend.title = element_blank()) +
+              scale_x_discrete(name = "") + scale_y_continuous(name = "% differentially expressed genes",
+                                                               limits = c(0, 9)) +
+              theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16),
+                    axis.title.y = element_text(size = 20), legend.text = element_text(size = 16))
+
+psoc_form <- ggplot(data = to_plot_q, aes(x = form, y = percentage)) +
+              geom_bar(stat = "identity", fill = "steelblue") +
+              theme_bw() + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank(),
+                                 legend.title = element_blank()) +
+              scale_x_discrete(name = "Direction of expression", labels = c("Single-queen",  "Multiple-queen")) + scale_y_continuous(name = "% differentially expressed genes", 
+                                                               limits = c(0, 9)) +
+              theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16),
+                    axis.title.y = element_text(size = 20), axis.title.x = element_text(size = 20),
+                    legend.text = element_text(size = 16))
+
+#Plot polygine bias within and outside the supergene region
+
+tot_percent_de_nrec <- de_percent_nrec_p_q + de_percent_nrec_m_q
+tot_percent_de_rec <- de_percent_rec_p_q + de_percent_rec_m_q
+
+poly_bias_nrec <- (de_percent_nrec_p_q / tot_percent_de_nrec) * 100
+poly_bias_rec <- (de_percent_rec_p_q / tot_percent_de_rec) * 100
+
+to_plot_poy_bias <- data.frame(c(poly_bias_nrec, poly_bias_rec),
+                               factor(c("Supergene",  "Rest of the genome"),
+                                      levels = c("Supergene",  "Rest of the genome")))
+
+colnames(to_plot_poy_bias ) <- c("poly_bias", "region")
+
+ppoly_bias <- ggplot(data = to_plot_poy_bias, aes(x = region, y = poly_bias)) +
+              geom_bar(stat = "identity", fill = "brown4") +
+              theme_bw() + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank(),
+                                 legend.title = element_blank()) +
+              scale_x_discrete(name = "") + scale_y_continuous(name = "% high expression in multiple-queen") +
+              theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16),
+                    axis.title.y = element_text(size = 20), legend.text = element_text(size = 16))
+
+
+
+```
+
+## Supplementary tables
+
+```{r, supp_tables, include = FALSE}
+#Generate results table only with significant genes for each comparison
+res_de_q_sig <- res_de_q[which(res_de_q$padj < 0.05), ]
+res_de_w_sig <- res_de_w[which(res_de_w$padj < 0.05), ]
+
+df_de_q_sig <- as.data.frame(res_de_q_sig)
+df_de_w_sig <- as.data.frame(res_de_w_sig)
+
+```
+
+
+
+
+
+
