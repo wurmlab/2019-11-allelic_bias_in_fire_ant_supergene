@@ -663,7 +663,35 @@ supergene_bin <- as.factor(ifelse(linkage_groups == "lg16_supergene", 2, 1))
 linkage_groups <- as.factor(linkage_groups)
 
 #Run the model
-supergene_enrichment <- glm(de_genes_ratio ~ supergene_bin + linkage_groups, family = "quasibinomial")
+supergene_enrichment <- glm(de_genes_ratio ~ supergene_bin, family = "quasibinomial")
+
+#Significance levels
+summary(supergene_enrichment)
+#Run a similar model for all linkage groups (+ p value correction)
+#Remove the superge from the data frame and the list of lg
+de_genes_ratio_no_super <- de_genes_ratio[!linkage_groups == "lg16_supergene", ]
+linkage_groups_no_super <- linkage_groups[!linkage_groups == "lg16_supergene"]
+
+#Generate a dataframe for the new pvalues
+glm_non_super_lg <- data.frame(linkage_groups_no_super)
+glm_non_super_lg$pvalue <- NULL
+
+colnames(glm_non_super_lg)[1] <- "linkage_group"
+
+for(lg in linkage_groups_no_super){
+  
+  lg_bin <- as.factor(ifelse(linkage_groups_no_super == lg, 2, 1))
+  lg_enrichment <- glm(de_genes_ratio_no_super ~ lg_bin, family = "quasibinomial")
+  
+  raw_pval <- summary(lg_enrichment)$coefficients[2, 4]
+  glm_non_super_lg$pvalue[glm_non_super_lg$linkage_group == lg] <- raw_pval
+}
+
+#Correct pvalues 
+glm_non_super_lg$padj <- p.adjust(glm_non_super_lg$pvalue, method = "BH")
+
+#Which other linkage groups are enriched?
+glm_non_super_lg[glm_non_super_lg$padj < 0.05, ]
 
 ```
 
@@ -680,20 +708,19 @@ penrich <- ggplot(data = to_plot_q, aes(x = region, y = percentage)) +
               geom_bar(stat = "identity", fill = "steelblue") +
               theme_bw() + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank(),
                                  legend.title = element_blank()) +
-              scale_x_discrete(name = "") + scale_y_continuous(name = "% differentially expressed genes",
+              scale_x_discrete(name = "", labels = c("Supergene", "Rest of\nthe genome")) + scale_y_continuous(name = "% differentially expressed genes",
                                                                limits = c(0, 9)) +
-              theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16),
-                    axis.title.y = element_text(size = 20), legend.text = element_text(size = 16))
+              theme(axis.text.x = element_text(size = 24), axis.text.y = element_text(size = 24),
+                    axis.title.y = element_text(size = 28), legend.text = element_text(size = 24))
 
 psoc_form <- ggplot(data = to_plot_q, aes(x = form, y = percentage)) +
               geom_bar(stat = "identity", fill = "steelblue") +
               theme_bw() + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank(),
                                  legend.title = element_blank()) +
-              scale_x_discrete(name = "Direction of expression", labels = c("Single-queen",  "Multiple-queen")) + scale_y_continuous(name = "% differentially expressed genes", 
+              scale_x_discrete(name = "", labels = c("Supergene", "Rest of\nthe genome")) + scale_y_continuous(name = "% differentially expressed genes",
                                                                limits = c(0, 9)) +
-              theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16),
-                    axis.title.y = element_text(size = 20), axis.title.x = element_text(size = 20),
-                    legend.text = element_text(size = 16))
+              theme(axis.text.x = element_text(size = 24), axis.text.y = element_text(size = 24),
+                    axis.title.y = element_text(size = 28), legend.text = element_text(size = 24))
 
 #Plot polygine bias within and outside the supergene region
 
@@ -713,12 +740,14 @@ ppoly_bias <- ggplot(data = to_plot_poy_bias, aes(x = region, y = poly_bias)) +
               geom_bar(stat = "identity", fill = "brown4") +
               theme_bw() + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank(),
                                  legend.title = element_blank()) +
-              scale_x_discrete(name = "") + scale_y_continuous(name = "% high expression in multiple-queen") +
-              theme(axis.text.x = element_text(size = 16), axis.text.y = element_text(size = 16),
-                    axis.title.y = element_text(size = 20), legend.text = element_text(size = 16))
+              scale_x_discrete(name = "", labels = c("Supergene", "Rest of\nthe genome")) + scale_y_continuous(name = "% differentially expressed genes") +
+              theme(axis.text.x = element_text(size = 24), axis.text.y = element_text(size = 24),
+                    axis.title.y = element_text(size = 28), legend.text = element_text(size = 24))
 
 
-
+ggsave(filename = "results/enrichment_supergene.pdf", plot = penrich, device = "pdf", height = 20, width = 15, units = "cm")
+ggsave(filename = "results/social_form_bias.pdf", plot = psoc_form, device = "pdf", height = 20, width = 15, units = "cm")
+ggsave(filename = "results/polygyne_bias_by_region.pdf", plot = ppoly_bias, device = "pdf", height = 20, width = 15, units = "cm")
 ```
 
 ## Supplementary tables
