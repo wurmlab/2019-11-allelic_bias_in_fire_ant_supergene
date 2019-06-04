@@ -116,7 +116,7 @@ ddsTxi_q <- DESeqDataSetFromTximport(txi_reads_q, colData = info$q,
                                      design = ~ social_form)
 
 #Performs DESeq2 test for detecting DE loci
-de_txi_q <- DESeq(ddsTxi_q)
+de_txi_q <- DESeq(ddsTxi_q, betaPrior = TRUE)
 
 #summary of the results:
 res_de_txi_q <- results(de_txi_q)
@@ -126,7 +126,7 @@ ddsTxi_w <- DESeqDataSetFromTximport(txi_reads_w, colData = info$w,
                                      design = ~ social_form)
 
 #Performs DESeq2 test for detecting DE loci
-de_txi_w <- DESeq(ddsTxi_w)
+de_txi_w <- DESeq(ddsTxi_w, betaPrior = TRUE)
 
 #summary of the results:
 res_de_txi_w <- results(de_txi_w)

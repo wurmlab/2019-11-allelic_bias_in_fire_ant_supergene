@@ -265,7 +265,7 @@ dds_Bb <- DESeqDataSetFromMatrix(countData = to_analyse_DESeq2_polyq,
                                  colData = colData_Bb, design = ~ allele)
 sizeFactors(dds_Bb) <- rep(1, ncol(to_analyse_DESeq2_polyq))
 #Perform the analysis:
-dds_Bb_DE <- DESeq(dds_Bb)
+dds_Bb_DE <- DESeq(dds_Bb, betaPrior = TRUE)
 #Save the DESeq2 object
 save(dds_Bb_DE, file = "results/dds_Sb_vs_SB_north_america.RData")
 

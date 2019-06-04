@@ -289,7 +289,7 @@ sizeFactors(dds_ar_interaction) <- rep(1, ncol(to_analyse_DESeq2_ar))
 #If using test = LRT, deseq2 performs a test for detecting DE loci, using first a likelihood ratio test (ANOVA-like). This test compares the model ~body_part+allele against a
 #reduced model, ~body_part. The p values indicate which genes are significantly DE accross ALL levels of allele. Normalisation
 #has been done only by boy_part, as ASE data comes always from the same sample. If test is not specified it runs the usual Wald test for the last element in the design formula (body_part:allele)
-dds_deg_ar_interaction <- DESeq(dds_ar_interaction, test = "LRT", reduced = ~ colony + body_part + allele)
+dds_deg_ar_interaction <- DESeq(dds_ar_interaction, test = "LRT", reduced = ~ colony + body_part + allele, betaPrior = TRUE)
 
 #Get results
 res_deg_ar_interaction <- results(dds_deg_ar_interaction)
@@ -305,7 +305,7 @@ dds_ar <- DESeqDataSetFromMatrix(countData = to_analyse_DESeq2_ar, colData = col
 #Perform the analysis replacing the sizeFactors: 
 sizeFactors(dds_ar) <- rep(1, ncol(to_analyse_DESeq2_ar))
 #Perform DESeq analysis
-dds_deg_ar <- DESeq(dds_ar)
+dds_deg_ar <- DESeq(dds_ar, betaPrior = TRUE)
 
 #Save the DESeq2 object
 save(dds_deg_ar, file = "results/dds_Sb_vs_SB_south_america.RData")
@@ -365,7 +365,7 @@ Different body parts will perform different functions, and this is reflected in 
 dds_ar_coef <- DESeqDataSetFromMatrix(countData = to_analyse_DESeq2_ar, colData = colData_ar, design = ~ colony + body_part + allele:body_part)
 #Perform the analysis replacing the sizeFactors: 
 sizeFactors(dds_ar_coef) <- rep(1, ncol(to_analyse_DESeq2_ar))
-dds_deg_ar_coef <- DESeq(dds_ar_coef)
+dds_deg_ar_coef <- DESeq(dds_ar_coef, betaPrior = TRUE)
 res_deg_ar_coef <- results(dds_deg_ar_coef)
 
 coef_QA <- coefficients(dds_deg_ar_coef)[, "body_partA.alleleB"]
