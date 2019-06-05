@@ -157,7 +157,7 @@ regions_ase_tmp <- mergeByOverlaps(ase_by_gene_pos_tmp,
 #The GRanges object is clunky and contains a lot of information which is redundant and that I don't need.
 #This generates a simplified dataframe with only the position, the allele counts and the transcript and gene names.
 
-regions_ase_df <- cbind(as.data.frame(regions_ase_tmp$ase_by_gene_pos),
+regions_ase_df <- cbind(as.data.frame(regions_ase_tmp$ase_by_gene_pos_tmp),
                         as.data.frame(regions_ase_tmp$regions_ranges@elementMetadata))
 
 

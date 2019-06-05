@@ -100,10 +100,8 @@ colnames(tx_gene) <- c("transcript", "gene")
 
 #Import the abundance files into a DESeq2 object
 
-txi_reads_w <- tximport(kallisto_files_w, type = "kallisto", reader = read_tsv,
-                        tx2gene = tx_gene)
-txi_reads_q <- tximport(kallisto_files_q, type = "kallisto", reader = read_tsv,
-                        tx2gene = tx_gene)
+txi_reads_w <- tximport(kallisto_files_w, type = "kallisto", tx2gene = tx_gene)
+txi_reads_q <- tximport(kallisto_files_q, type = "kallisto", tx2gene = tx_gene)
 ```
 
 ## Perform the DESeq2 analysis
