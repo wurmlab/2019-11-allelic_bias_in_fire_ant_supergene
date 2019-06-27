@@ -405,14 +405,21 @@ lfcs_joint_mor_sorted$mor_halves[lfcs_joint_mor_sorted$lfcs_mor > 0] <- "HiP"
 
 #Now it's just a matter of comparing the B vs b distributions of LFCs between quarters
 ggplot(lfcs_joint_mor_sorted, aes(x = lfcs_ase, fill = mor_halves)) + geom_density(alpha = 0.3) + theme_bw() +
-  labs(x = "Logarithm fold change between variants", y = "Density") +
+  labs(x = "Log2 fold difference between variants", y = "Density") +
+  scale_fill_discrete(name = "Social form bias",
+                    labels = c("Multiple-queen", "Single-queen")) +
+  geom_vline(xintercept = 0, color = "red", size = 1.5) +
   theme(panel.border = element_blank(), panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black")) +
-  theme(axis.title.x = element_text(face = "bold", size = 30),
-        axis.text.x  = element_text(angle = 90, vjust = 0.5, size = 25)) +
-  theme(axis.title.y = element_text(face = "bold", size = 30),
-        axis.text.y  = element_text(angle = 90, vjust = 0.5, size = 25))
-
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"),
+        axis.title.x = element_text(face = "bold", size = 20),
+        axis.text.x  = element_text(vjust = 0.5, size = 18),
+        axis.title.y = element_text(face = "bold", size = 20),
+        axis.text.y  = element_text(vjust = 0.5, size = 18),
+        legend.title = element_text(size = 18, face="bold"),
+        legend.text = element_text(size = 15))
+#Save the plot
+ggsave(filename = "results/variant_density_social_form.pdf", device = "pdf",
+       width = 7, height = 3.5, units = "in")
 #Kolmogorov-Smirnov tests between quarters to see how different the distributions are
 ks.test(lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_halves == "HiM"],
         lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_halves == "HiP"])
