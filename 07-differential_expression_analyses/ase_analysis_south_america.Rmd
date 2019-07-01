@@ -410,6 +410,42 @@ abline(lm(coef_QA ~ coef_QT, weights = res_deg_ar_coef$baseMean), col = "red")
 par(mfrow = c(1,1))
 ```
 
+The LRT showed no significant interaction terms in general. Here we run a pairwise Wald test comparing each interaction to the reference level (alleleb, i.e. the effect of the Sb variant) to double check that no interactions are significant
+``` {r pairwise_comparisons_allele:body_part_interaction, message = FALSE}
+#Extract all the names for potential contrasts, keep only the interactions
+dds_deg_ar_coef <- DESeq(dds_ar_coef, betaPrior = FALSE)
+coef_names <- resultsNames(dds_deg_ar_coef)
+coef_interactions <- grep(pattern = "body_part[A-Z]\\.alleleB", x = coef_names, value = TRUE)
+
+#Run the Wald tests for each coefficient (this will compare each coefficient with each other)
+#Get all possible contrasts (all combination of elements in 'coef_interactions', 2 at a time)
+all_contrasts <- combn(x = c(1:length(coef_interactions)), m = 2)
+#Transpose the matrix of contrasts so that it can be read in the for loop
+all_contrasts <- t(all_contrasts)
+
+#Run loop for all contrasts of interactions
+#Generate empty vector to store all p values
+all_pvals_interactions <- c()
+
+for(this_contrast in 1:nrow(all_contrasts)){
+  #Select the coefficients for the contrast
+  coef_one <- all_contrasts[this_contrast, 1]
+  coef_one <- coef_interactions[coef_one]
+  coef_two <- all_contrasts[this_contrast, 2]
+  coef_two <- coef_interactions[coef_two]
+  #Run the contrast through DESeq2
+  this_result <- results(dds_deg_ar_coef, contrast = list(coef_one, coef_two))
+  #Get p values for that contrast and add to the existing vector
+  all_pvals_interactions <- append(all_pvals_interactions, this_result$padj)
+}
+
+#Are any of the p values significant (alpga = 0.05)?
+which(c < 0.05)
+#None
+```
+
+Pairwise Wald tests show again that none of the interactions with body part are significant. 
+
 ##Variant specific data vs social form comparisons
 
 It has been established that the SB alleles tend to be more highly expressed than their Sb counterparts. But of the few genes whose Sb allele is more highly expressed, are those genes also more highly expressed in general in polygyne queens? To test for this, the results from the comparison between social forms needs to be loaded into R again.
