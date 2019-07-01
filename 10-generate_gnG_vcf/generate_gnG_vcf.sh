@@ -23,5 +23,5 @@ mv run tmp/
 gunzip -c input/gnGA_sa.vcf.gz > tmp/gnGA_sa.vcf
 #Run CrossMap to liftover the vcf from gnGA to gnG
 source ~/crossmaps/bin/activate
-CrossMap.py vcf tmp/run/*****.chn tmp/gnGA_sa.vcf input/Si_gnG.fa tmp/gng_sa.vcf
+CrossMap.py vcf tmp/run/liftover.chn tmp/gnGA_sa.vcf input/Si_gnG.fa tmp/gng_sa.vcf
 deactivate
