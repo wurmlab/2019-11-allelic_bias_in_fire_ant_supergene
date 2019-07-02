@@ -1,3 +1,4 @@
+#!/bin/sh
 module load parallel
 module load genometools/1.5.9
 module load python/3.6.3
