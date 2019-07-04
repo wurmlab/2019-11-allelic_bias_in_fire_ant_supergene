@@ -1,5 +1,6 @@
 #!/bin/sh
 module load bcftools/1.8
+module load samtools/1.9
 #The ASE analysis performed on the supergene is repeated here on the whole genome. The differences with the original
 #analyisis (other than using the whole genome now) is that we will not focus on fixed differences only, and this
 #analysis will be performed for South American populations only. The aim is to detect whether we have enough power
@@ -33,3 +34,25 @@ ln -sr tmp/bam_files/ input/littleb_bam
 
 #Run the script for creating reference bias free bam files
 sh wasp_script.sh
+
+#Get the results of the reference bias free bam files
+ln -sr tmp/free_bias_bam/with_rg input/wasp_bam
+#Generate a file with the path to all neutral bam files for North America
+ls input/wasp_bam/*bam > path_to_bam.txt
+
+#Generate a file with only the smaple ids
+cat path_to_bam.txt | cut -d '/' -f 3 | cut -d '.' -f 1 > samples.ids
+#Change name of the reference
+mv tmp/Si_gnG.fa tmp/Si_gnG.fna
+
+#GATK needs both an index and a dict file to run:
+samtools faidx tmp/Si_gnG.fna
+java -jar picard CreateSequenceDictionary REFERENCE=tmp/Si_gnG.fna OUTPUT=tmp/Si_gnG.fna.dict
+
+#GATK needs a sorted vcf to run
+java -jar picard SortVcf \
+      I=input/subset.vcf \
+      O=tmp/sorted_subset.vcf
+
+#Run GATK to get ASE counts
+qsub script_gatk_neutral_ref_south_america.array.sh
