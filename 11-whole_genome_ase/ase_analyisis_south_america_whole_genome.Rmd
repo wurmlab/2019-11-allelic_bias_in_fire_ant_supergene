@@ -6,7 +6,7 @@ output: pdf_document
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.path = 'results/')
 ``` 
 ```{r libraries, echo = FALSE, message = FALSE}
 #Load all libraries
@@ -118,7 +118,7 @@ Import data into DESeq2
 
 The analysis for the allele specific expression between the alternative and reference alleles is performed in DESeq2. Because the alelle specific counts that are being compared always come from the same sample (and therefore, the same library), performing normalisation would flatten actual differences. The analysis therefore needs to be performed ensuring that the samples are not normalised (more info here<http://rpubs.com/mikelove/ase>). The first analysis will consider 'colony', 'body_part', 'allele' and the interaction between 'allele:body_part'.
 
-``` {r interaction_allele:body_part, message = FALSE}
+```{r interaction_allele:body_part, message = FALSE}
 #Get the data into DESeq2, get size factors by body part only (or sample?)
 dds_ar_interaction <- DESeqDataSetFromMatrix(countData = ase_mat, colData = colData_ar, design = ~ colony + body_part + allele + allele:body_part)
 #Perform the analysis replacing the sizeFactors: 
@@ -126,32 +126,32 @@ sizeFactors(dds_ar_interaction) <- rep(1, ncol(ase_mat))
 #If using test = LRT, deseq2 performs a test for detecting DE loci, using first a likelihood ratio test (ANOVA-like). This test compares the model ~body_part+allele against a
 #reduced model, ~body_part. The p values indicate which genes are significantly DE accross ALL levels of allele. Normalisation
 #has been done only by boy_part, as ASE data comes always from the same sample. If test is not specified it runs the usual Wald test for the last element in the design formula (body_part:allele)
-dds_deg_ar_interaction <- DESeq(dds_ar_interaction, test = "LRT", reduced = ~ colony + body_part + allele, betaPrior = FALSE)
+dds_deg_ar_interaction_lrt <- DESeq(dds_ar_interaction, test = "LRT", reduced = ~ colony + body_part + allele, betaPrior = FALSE)
 
 #Get results
-res_deg_ar_interaction <- results(dds_deg_ar_interaction)
+res_deg_ar_interaction_lrt <- results(dds_deg_ar_interaction_lrt)
 #How many DEG with interaction?
-length(which(res_deg_ar_interaction$padj < 0.05))
-#18
+length(which(res_deg_ar_interaction_lrt$padj < 0.05))
+#7
 ```
 Out of the 2599 genes analysed, 7 show allele specific expression differences between body parts.
 
-##Variant specific vs body part comparisons----------------CONTINUE HERE-------------------------
+##Variant specific vs body part comparisons
 
-Different body parts will perform different functions, and this is reflected in gene expression differences. If most genes in the supergene region perform different functions related to social form, the expectation would be that the SB to Sb differences across body parts should change, as we would expect tissues in the head to be performing differently to those in the abdomen. We already know that there is no Sb-Sb, body part interaction from the previous test, but plotting the SB-Sb differences across tissues will help visualise this result.
+Plot the interaction of body part:allele for visual confirmation of the previous results. It could be that the LRT is not powerful enough to detect most of the ASE. 
 
-``` {r plot_allele:body_part_interaction, message = FALSE}
-#Get coefficients for interactions only
-dds_ar_coef <- DESeqDataSetFromMatrix(countData = to_analyse_DESeq2_ar, colData = colData_ar, design = ~ colony + body_part + allele:body_part)
+```{r plot_allele:body_part_interaction, message = FALSE}
+#Get coefficients for interactions only (that is, the main 'allele' effect will be implicit in the interaction term of each body part)
+dds_ar_coef <- DESeqDataSetFromMatrix(countData = ase_mat, colData = colData_ar, design = ~ colony + body_part + allele:body_part)
 #Perform the analysis replacing the sizeFactors: 
-sizeFactors(dds_ar_coef) <- rep(1, ncol(to_analyse_DESeq2_ar))
+sizeFactors(dds_ar_coef) <- rep(1, ncol(ase_mat))
 dds_deg_ar_coef <- DESeq(dds_ar_coef, betaPrior = FALSE)
 res_deg_ar_coef <- results(dds_deg_ar_coef)
 
-coef_QA <- coefficients(dds_deg_ar_coef)[, "body_partA.alleleB"]
-coef_QT <- coefficients(dds_deg_ar_coef)[, "body_partT.alleleB"]
-coef_QH <- coefficients(dds_deg_ar_coef)[, "body_partH.alleleB"]
-coef_W  <- coefficients(dds_deg_ar_coef)[, "body_partW.alleleB"]
+coef_QA <- coefficients(dds_deg_ar_coef)[, "body_partA.alleleref"]
+coef_QT <- coefficients(dds_deg_ar_coef)[, "body_partT.alleleref"]
+coef_QH <- coefficients(dds_deg_ar_coef)[, "body_partH.alleleref"]
+coef_W  <- coefficients(dds_deg_ar_coef)[, "body_partW.alleleref"]
 
 #Plot weihting points by read count mean, add line with linear regression, weighted by counts
 #Weight for the point size, by log(mean counts per gene), scaled up to fit 0-1 range
@@ -190,12 +190,12 @@ abline(lm(coef_QA ~ coef_QT, weights = res_deg_ar_coef$baseMean), col = "red")
 par(mfrow = c(1,1))
 ```
 
-The LRT showed no significant interaction terms in general. Here we run a pairwise Wald test comparing each interaction to the reference level (alleleb, i.e. the effect of the Sb variant) to double check that no interactions are significant
-``` {r pairwise_comparisons_allele:body_part_interaction, message = FALSE}
-#Extract all the names for potential contrasts, keep only the interactions
+There seems to be more differences between workers and queen body parts (and fewer but strong differences between some queen body parts). The LRT showed very few differences in terms of ASE between castes/body parts. Here we run a pairwise Wald test comparing each interaction to the reference level (allelealt, i.e. the effect of the alternative) to double check the significance of ase across body parts/caste
+```{r pairwise_comparisons_allele:body_part_interaction, message = FALSE}
+#Extract all the names for potential contrasts, keep only the interactions (in this model, main variant effects + interactions)
 dds_deg_ar_coef <- DESeq(dds_ar_coef, betaPrior = FALSE)
 coef_names <- resultsNames(dds_deg_ar_coef)
-coef_interactions <- grep(pattern = "body_part[A-Z]\\.alleleB", x = coef_names, value = TRUE)
+coef_interactions <- grep(pattern = "body_part[A-Z]\\.alleleref", x = coef_names, value = TRUE)
 
 #Run the Wald tests for each coefficient (this will compare each coefficient with each other)
 #Get all possible contrasts (all combination of elements in 'coef_interactions', 2 at a time)
@@ -204,8 +204,8 @@ all_contrasts <- combn(x = c(1:length(coef_interactions)), m = 2)
 all_contrasts <- t(all_contrasts)
 
 #Run loop for all contrasts of interactions
-#Generate empty vector to store all p values
-all_pvals_interactions <- c()
+#Generate empty matrix to store all results
+all_pvals_interactions <- matrix(NA, ncol = 3, dimnames = list(NULL, c("snp", "contrast", "padj")))
 
 for(this_contrast in 1:nrow(all_contrasts)){
   #Select the coefficients for the contrast
@@ -215,39 +215,126 @@ for(this_contrast in 1:nrow(all_contrasts)){
   coef_two <- coef_interactions[coef_two]
   #Run the contrast through DESeq2
   this_result <- results(dds_deg_ar_coef, contrast = list(coef_one, coef_two))
-  #Get p values for that contrast and add to the existing vector
-  all_pvals_interactions <- append(all_pvals_interactions, this_result$padj)
+  #Get p values for that contrast
+  all_pvals <- this_result$padj
+  #Get all gene names
+  all_genes <- rownames(this_result)
+  #Get the contrast
+  these_coefs <- rep(paste0(coef_one, "_vs_", coef_two), nrow(this_result))
+  #Add all data to the main matrix
+  all_pvals_interactions <- rbind(all_pvals_interactions, matrix(c(all_genes, these_coefs, all_pvals), ncol = 3))
 }
+#Transform into data frame
+all_pvals_interactions <- data.frame(all_pvals_interactions, stringsAsFactors = FALSE)
+#Remove NAs from first row
+all_pvals_interactions <- all_pvals_interactions[rowSums(is.na(all_pvals_interactions)) != ncol(all_pvals_interactions), ]
+#Make sure the numeric variable is numeric
+all_pvals_interactions$padj <- as.numeric(all_pvals_interactions$padj)
 
-#Are any of the p values significant (alpga = 0.05)?
-which(c < 0.05)
-#None
+#Which snps are significant (alpha = 0.05)?
+sig_snps <- all_pvals_interactions[which(all_pvals_interactions$padj < 0.05), ]
+length(unique(sig_snps$snp))
 ```
 
-Pairwise Wald tests show again that none of the interactions with body part are significant. 
+Pairwise Wald tests show that 105 out of the 2599 snps analysed show ASE.
+How well distributed are those snps? Could it be that is all down to a few scaffolds?
 
-## Plot all significant genes to check variant effect visually
+```{r sig_snps_scaffolds, message = FALSE}
+#Get the name of the scaffolds with significant snps
+sig_scaffolds <- unique(sig_snps$snp)
+sig_scaffolds <- gsub(pattern = "_[0-9]+$",
+                      replacement = "",
+                      x = sig_scaffolds)
+nb_sig_scaff <- length(unique(sig_scaffolds))
 
-DESeq2 gives a lsit of differentially expressed genes between variants. Some of those are based on very low read counts on average. The following plot can be use to assess visually those differences.
+#Get the name of all scaffolds analysed
+all_scaffolds <- unique(all_pvals_interactions$snp)
+all_scaffolds <- gsub(pattern = "_[0-9]+$",
+                      replacement = "",
+                      x = all_scaffolds)
+nb_all_scaff <- length(unique(all_scaffolds))
+#Number of sig snps
+nb_sig_snps <- length(unique(sig_snps$snp))
 
-```{r variant_differences_plot, message = FALSE}
+#Number of total snps
+nb_all_snps <- length(unique(all_pvals_interactions$snp))
 
-#Select significant genes
-sig_genes <- rownames(res_deg_ar[which(res_deg_ar$padj < 0.05), ])
-counts_specific_genes <- counts(dds_ar, norm = TRUE)[sig_genes, ]
-
-
-specific_genes <- rep(rownames(counts_specific_genes), ncol(counts_specific_genes))
-samples <- rep(colnames(counts_specific_genes), each = nrow(counts_specific_genes))
-variant <- gsub(pattern = ".+_", replacement = "", x = samples)
-body_part_sp <- gsub(x = samples, pattern = "([0-9]+[BC]?Q?)([A-Z])(_[Bb])", replacement = "\\2")
-
-specific_genes_parsed <- data.frame(c(counts_specific_genes), specific_genes, samples, variant, body_part_sp)
-
-colnames(specific_genes_parsed) <- c("counts", "genes", "samples", "variant", "body_part")
-
-ggplot(data = specific_genes_parsed, aes(x = variant, y = log(counts + 1), fill = body_part)) + geom_violin() + facet_grid(. ~ genes) +
-  geom_jitter(position = position_dodge(1))
+#Is there an enrichment of significant snps in a few scaffolds?
+to_chi_scaff <- matrix(c((nb_all_snps - nb_sig_snps), (nb_all_scaff - nb_sig_scaff), nb_sig_snps, nb_sig_scaff), nrow = 2,
+                       dimnames = list(c("snps", "scaffolds"), c("non_sig", "sig")))
+to_chi_scaff
+chisq.test(to_chi_scaff)
 
 ```
 
+This is a very significant result, but rather than enrichment, it shows depletion. The significant snps are over-dispersed across more scaffolds than expected by chance
+Re-create the plot above, but colouring in red the snps for significant comparisons
+
+```{r plot_allele:body_part_interaction_sig_snps, message = FALSE}
+#Get coefficients for interactions only (that is, the main 'allele' effect will be implicit in the interaction term of each body part)
+dds_ar_coef <- DESeqDataSetFromMatrix(countData = ase_mat, colData = colData_ar, design = ~ colony + body_part + allele:body_part)
+#Perform the analysis replacing the sizeFactors: 
+sizeFactors(dds_ar_coef) <- rep(1, ncol(ase_mat))
+dds_deg_ar_coef <- DESeq(dds_ar_coef, betaPrior = FALSE)
+res_deg_ar_coef <- results(dds_deg_ar_coef)
+
+
+coef_QA <- coefficients(dds_deg_ar_coef)[, "body_partA.alleleref"]
+coef_QT <- coefficients(dds_deg_ar_coef)[, "body_partT.alleleref"]
+coef_QH <- coefficients(dds_deg_ar_coef)[, "body_partH.alleleref"]
+coef_W  <- coefficients(dds_deg_ar_coef)[, "body_partW.alleleref"]
+
+#Plot weihting points by read count mean, add line with linear regression, weighted by counts
+#Weight for the point size, by log(mean counts per gene), scaled up to fit 0-1 range
+cex_weights <- (log(res_deg_ar_coef$baseMean) - min(log(res_deg_ar_coef$baseMean)))/
+  (max(log(res_deg_ar_coef$baseMean))-min(log(res_deg_ar_coef$baseMean)))
+par(mfrow = c(3, 2), cex.lab = 2, cex.axis = 2)
+#Add red colour for significant snp in specific comparisons (black if not sig)
+cols_QA_QT <- ifelse(all_pvals_interactions$padj[all_pvals_interactions$contrast == "body_partA.alleleref_vs_body_partT.alleleref"] < 0.05, "red", "black")
+cols_QA_QT[is.na(cols_QA_QT)] <- "black"
+plot(coef_QA, coef_QT, type = "n", xlab = "Queen Abdomen LFCs", ylab = "Queen Thorax LFCs", xlim = c(-20, 30), ylim = c(-20, 30))
+points(coef_QA, coef_QT, col = cols_QA_QT, cex = 2*cex_weights, pch = 20)
+abline(0,1)
+abline(lm(coef_QT ~ coef_QA, weights = res_deg_ar_coef$baseMean), col = "red")
+
+#Add red colour for significant snp in specific comparisons (black if not sig)
+cols_QA_QH <- ifelse(all_pvals_interactions$padj[all_pvals_interactions$contrast == "body_partA.alleleref_vs_body_partH.alleleref"] < 0.05, "red", "black")
+cols_QA_QH[is.na(cols_QA_QH)] <- "black"
+plot(coef_QA, coef_QH, type = "n", xlab = "Queen Abdomen LFCs", ylab = "Queen Head LFCs" , xlim = c(-20, 30), ylim = c(-20, 30))
+points(coef_QA, coef_QH, col = cols_QA_QH, cex = 2*cex_weights, pch = 20)
+abline(0,1)
+abline(lm(coef_QH ~ coef_QA, weights = res_deg_ar_coef$baseMean), col = "red")
+
+#Add red colour for significant snp in specific comparisons (black if not sig)
+cols_QA_W <- ifelse(all_pvals_interactions$padj[all_pvals_interactions$contrast == "body_partA.alleleref_vs_body_partW.alleleref"] < 0.05, "red", "black")
+cols_QA_W[is.na(cols_QA_W)] <- "black"
+plot(coef_QA, coef_W, type = "n", xlab = "Queen Abdomen LFCs", ylab = "Worker LFCs" , xlim = c(-20, 30), ylim = c(-20, 30))
+points(coef_QA, coef_W, col = cols_QA_W, cex = 2*cex_weights, pch = 20)
+abline(0,1)
+abline(lm(coef_W ~ coef_QA, weights = res_deg_ar_coef$baseMean), col = "red")
+
+#Add red colour for significant snp in specific comparisons (black if not sig)
+cols_QH_W <- ifelse(all_pvals_interactions$padj[all_pvals_interactions$contrast == "body_partH.alleleref_vs_body_partW.alleleref"] < 0.05, "red", "black")
+cols_QH_W[is.na(cols_QH_W)] <- "black"
+plot(coef_QH, coef_W, type = "n", xlab = "Queen Head LFCs", ylab = "Worker LFCs" , xlim = c(-20, 30), ylim = c(-20, 30))
+points(coef_QH, coef_W, col = cols_QH_W, cex = 2*cex_weights, pch = 20)
+abline(0,1)
+abline(lm(coef_W ~ coef_QH, weights = res_deg_ar_coef$baseMean), col = "red")
+
+#Add red colour for significant snp in specific comparisons (black if not sig)
+cols_QT_W <- ifelse(all_pvals_interactions$padj[all_pvals_interactions$contrast == "body_partT.alleleref_vs_body_partW.alleleref"] < 0.05, "red", "black")
+cols_QT_W[is.na(cols_QT_W)] <- "black"
+plot(coef_QT, coef_W, type = "n", xlab = "Queen Thorax LFCs", ylab = "Worker LFCs" , xlim = c(-20, 30), ylim = c(-20, 30))
+points(coef_QT, coef_W, col = cols_QT_W, cex = 2*cex_weights, pch = 20)
+abline(0,1)
+abline(lm(coef_W ~ coef_QT, weights = res_deg_ar_coef$baseMean), col = "red")
+
+#Add red colour for significant snp in specific comparisons (black if not sig)
+cols_QT_QH <- ifelse(all_pvals_interactions$padj[all_pvals_interactions$contrast == "body_partH.alleleref_vs_body_partT.alleleref"] < 0.05, "red", "black")
+cols_QT_QH[is.na(cols_QT_QH)] <- "black"
+plot(coef_QT, coef_QH, type = "n", xlab = "Queen Thorax LFCs", ylab = "Queen Head LFCs" , xlim = c(-20, 30), ylim = c(-20, 30))
+points(coef_QT, coef_QH, col = cols_QT_QH, cex = 2*cex_weights, pch = 20)
+abline(0,1)
+abline(lm(coef_QA ~ coef_QT, weights = res_deg_ar_coef$baseMean), col = "red")
+par(mfrow = c(1,1))
+```
