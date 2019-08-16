@@ -1,0 +1,166 @@
+---
+title: "SNP effect analysis South America"
+author: "Carlos Martinez Ruiz"
+date: "15 August 2019"
+output: pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path = 'results/')
+``` 
+```{r libraries, echo = FALSE, message = FALSE}
+#Load all libraries
+library(Biobase)
+library(ggplot2)
+library(gridExtra)
+
+
+for (package in (.packages()) ) { 
+ print(paste("Package", package, "version", package.version(package)))
+}
+```
+## Introduction
+The fixed SNPs detected between SB and Sb for the South American populations were analysed using SNPeff. This tool analyses the impact of individual mutations on specific genes. In this case, the output of SNPeff refers to the effect of the alternative variant, ie. the impact of the Sb variant. This script will analyse in more depth the effect on genes of interest. More specifically, we will be looking at SNP effects in:
+
+* The three genes identified as potential candidates. 
+* Genes with low expression in Sb, potentially under dosage compensation. 
+
+Load and prepare the data
+```{r load_data, include = FALSE}
+#Load the table (tab separated table). Remove the first row containing irrelevant info 
+snp_effect <- read.csv("input/snpEff_genes.txt", sep = "\t",
+                       skip = 1, header = TRUE)
+
+#Clean the column names
+colnames(snp_effect) <- gsub(pattern = "variants_",
+                             replacement = "",
+                             x = colnames(snp_effect))
+
+colnames(snp_effect)[1] <- gsub(pattern = "X\\.",
+                                replacement = "",
+                                x = colnames(snp_effect)[1])
+
+```
+
+## SNP effect in candidate genes
+
+The candidate genes, that is, genes differentially expressed between SB and Sb in both populations and also between single- and multiple- queen individuals are:
+
+* LOC105194481
+* LOC105199327
+* LOC105199531
+
+How do the SNPs between SB and Sb affect them?
+```{r snp_eff_candidate_genes, include = FALSE}
+#Subset for the candidate genes only
+#Select candidate genes
+candidate_genes <- c("LOC105194481", "LOC105199327", "LOC105199531")
+
+#Subset dataset
+snp_effect_candidates <- subset(x = snp_effect, subset = GeneId %in% candidate_genes)
+
+#Remove extra row for the two transcripts of the gene LOC105199327
+snp_effect_candidates$TranscriptId <- NULL
+snp_effect_candidates <- snp_effect_candidates[!duplicated(snp_effect_candidates), ]
+
+#Remove uninformative columns (all genes have 0 effects)
+snp_effect_candidates <- snp_effect_candidates[, colSums(snp_effect_candidates != 0) > 0]
+
+#Make plot based on impact of the variant
+snp_effect_candidates_impact <- snp_effect_candidates[, grepl("(GeneId)|(impact)",
+                                                             colnames(snp_effect_candidates))]
+
+#Parse the dataframe to make compatible with ggplot
+gene_id <- rep(snp_effect_candidates_impact$GeneId, times = nrow(snp_effect_candidates_impact))
+impact <- rep(c("low", "moderate", "modifier"), each = nrow(snp_effect_candidates_impact))
+
+snp_effect_candidates_impact_parsed <- data.frame(gene_id,
+                                                  nb_snps =  c(as.matrix(snp_effect_candidates_impact[, 2:4])),
+                                                  impact)
+
+plot_impact_candidates <- ggplot(data = snp_effect_candidates_impact_parsed, aes(y = nb_snps, x = gene_id, fill = impact)) + geom_bar(stat = "identity", position = position_dodge()) +
+                            theme_bw()
+
+#Make plot based on position of the variant
+snp_effect_candidates_position <- snp_effect_candidates[, !grepl("(GeneName)|(impact)",
+                                                             colnames(snp_effect_candidates))]
+
+#Parse the dataframe to make compatible with ggplot
+position_names <- colnames(snp_effect_candidates_position[, 3:ncol(snp_effect_candidates_position)])
+gene_id <- rep(snp_effect_candidates_position$GeneId, times = length(position_names))
+position <- rep(position_names, each = nrow(snp_effect_candidates_position))
+
+snp_effect_candidates_position_parsed <- data.frame(gene_id,
+                                                    nb_snps = c(as.matrix(snp_effect_candidates_position[, position_names])),
+                                                    position)
+
+plot_position_candidates <- ggplot(data = snp_effect_candidates_position_parsed, aes(y = nb_snps, x = gene_id, fill = position)) + geom_bar(stat = "identity", position = position_dodge()) +
+                                  theme_bw()
+
+grid.arrange(plot_impact_candidates, plot_position_candidates)
+``` 
+
+## SNP effect in SB genes compared to the rest of genes
+
+One of the hypotheses is that genes which are more highly expressed in SB and not differentially expressed between social forms may be under dosage compensation. A way to check this is to see wheter such genes have a higher proportion overall of disrupting SNPs in Sb, which could be causing their down-regulation. 
+
+Load list of genes of interest (SB differential bias + no differences between social forms). The table used here was generated in '../2018-12-10-ase_analysis/ase_analysis_north_america.Rmd'.
+```{r snp_eff_bb_genes, include = FALSE}
+#Load table with the joint LFCs
+load('input/lfcs_joint.RData')
+
+#Select the genes of interest (significantly highly expressed in SB, no differential expression between social forms)
+bb_genes <- as.vector(lfcs_joint_nona$gene[lfcs_joint_nona$lfcs_ase > 0 & lfcs_joint_nona$padj_ase < 0.05 & lfcs_joint_nona$padj_mor > 0.05])
+
+#Add a variable in the snp_effect dataframe to distinguish genes in SB from the rest
+snp_effect$gene_type <- ifelse(snp_effect$GeneId %in% bb_genes, "bb_gene", "rest_of_genes")
+``` 
+
+Generate two different plots, one measuring the overall impact of the SNPs in the SB genes, and another looking at the overall position of SNPs in SB genes compared to the rest
+
+```{r plot_snp_eff_bb_genes, include = FALSE}
+#Make plot based on impact of the variant
+snp_effect_impact <- snp_effect[, grepl("(gene_type)|(impact)",
+                                 colnames(snp_effect))]
+
+#Parse the dataframe to make compatible with ggplot
+gene_type <- rep(snp_effect_impact$gene_type, times = 4)
+impact <- rep(c("high", "low", "moderate", "modifier"), each = nrow(snp_effect_impact))
+
+snp_effect_impact_parsed <- data.frame(gene_id,
+                                       nb_snps =  c(as.matrix(snp_effect_impact[, 1:4])),
+                                       impact)
+plot_impact <- ggplot(data = snp_effect_impact_parsed, aes(y = log(nb_snps + 1), x = impact, fill = gene_type)) + geom_boxplot() +
+                            theme_bw()
+
+#Make plot based on position of the variant
+snp_effect_candidates_position <- snp_effect_candidates[, !grepl("(GeneName)|(impact)",
+                                                             colnames(snp_effect_candidates))]
+
+#Parse the dataframe to make compatible with ggplot
+position_names <- grep(pattern = "effect", x = colnames(snp_effect), value = TRUE)
+gene_type <- rep(snp_effect$gene_type, times = length(position_names))
+position <- rep(position_names, each = nrow(snp_effect))
+
+snp_effect_candidates_position_parsed <- data.frame(gene_type,
+                                                    nb_snps = c(as.matrix(snp_effect[, position_names])),
+                                                    position)
+
+plot_position <- ggplot(data = snp_effect_candidates_position_parsed, aes(y = log(nb_snps + 1), x = gene_type, fill = position)) + geom_boxplot() +
+                                  theme_bw() 
+
+#Plot total number of SNPs
+total_snps_per_gene <- rowSums(snp_effect_impact[, 1:4])
+
+plot_snps_per_gene <- data.frame(total_snps = total_snps_per_gene, gene_type = snp_effect_impact$gene_type)
+
+plot_total_nb <- ggplot(data = plot_snps_per_gene, aes(y = total_snps, x = gene_type)) + geom_boxplot() +
+                      theme_bw() 
+```
+
+
+
+
+
+
+
