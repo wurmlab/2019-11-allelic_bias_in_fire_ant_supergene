@@ -25,5 +25,5 @@ mv run tmp/
 
 #Run CrossMap to liftover the vcf from gnGA to gnG
 source ~/crossmaps/bin/activate
-CrossMap.py vcf tmp/run/liftover.chn input/subset_south_america.vcf tmp/Si_gnG_ensembl.fa tmp/ensembl_sa.vcf
+CrossMap.py vcf tmp/run/liftover.chn tmp/common_snps.vcf tmp/Si_gnG_ensembl.fa tmp/ensembl_common.vcf
 deactivate

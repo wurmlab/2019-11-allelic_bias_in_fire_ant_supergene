@@ -40,6 +40,11 @@ colnames(snp_effect)[1] <- gsub(pattern = "X\\.",
                                 replacement = "",
                                 x = colnames(snp_effect)[1])
 
+#Remove duplicates arising from multiple transcripts per gene
+snp_effect$TranscriptId <- NULL
+#Keep only the first row
+snp_effect <- snp_effect[!duplicated(snp_effect$GeneId), ]
+
 ```
 
 ## SNP effect in candidate genes
@@ -58,10 +63,6 @@ candidate_genes <- c("LOC105194481", "LOC105199327", "LOC105199531")
 
 #Subset dataset
 snp_effect_candidates <- subset(x = snp_effect, subset = GeneId %in% candidate_genes)
-
-#Remove extra row for the two transcripts of the gene LOC105199327
-snp_effect_candidates$TranscriptId <- NULL
-snp_effect_candidates <- snp_effect_candidates[!duplicated(snp_effect_candidates), ]
 
 #Remove uninformative columns (all genes have 0 effects)
 snp_effect_candidates <- snp_effect_candidates[, colSums(snp_effect_candidates != 0) > 0]
@@ -127,7 +128,7 @@ snp_effect_impact <- snp_effect[, grepl("(gene_type)|(impact)",
 gene_type <- rep(snp_effect_impact$gene_type, times = 4)
 impact <- rep(c("high", "low", "moderate", "modifier"), each = nrow(snp_effect_impact))
 
-snp_effect_impact_parsed <- data.frame(gene_id,
+snp_effect_impact_parsed <- data.frame(gene_type,
                                        nb_snps =  c(as.matrix(snp_effect_impact[, 1:4])),
                                        impact)
 plot_impact <- ggplot(data = snp_effect_impact_parsed, aes(y = log(nb_snps + 1), x = impact, fill = gene_type)) + geom_boxplot() +
@@ -142,11 +143,11 @@ position_names <- grep(pattern = "effect", x = colnames(snp_effect), value = TRU
 gene_type <- rep(snp_effect$gene_type, times = length(position_names))
 position <- rep(position_names, each = nrow(snp_effect))
 
-snp_effect_candidates_position_parsed <- data.frame(gene_type,
-                                                    nb_snps = c(as.matrix(snp_effect[, position_names])),
-                                                    position)
+snp_effect_position_parsed <- data.frame(gene_type,
+                                         nb_snps = c(as.matrix(snp_effect[, position_names])),
+                                         position)
 
-plot_position <- ggplot(data = snp_effect_candidates_position_parsed, aes(y = log(nb_snps + 1), x = gene_type, fill = position)) + geom_boxplot() +
+plot_position <- ggplot(data = snp_effect_position_parsed, aes(y = log(nb_snps + 1), x = gene_type, fill = position)) + geom_boxplot() +
                                   theme_bw() 
 
 #Plot total number of SNPs
@@ -156,7 +157,48 @@ plot_snps_per_gene <- data.frame(total_snps = total_snps_per_gene, gene_type = s
 
 plot_total_nb <- ggplot(data = plot_snps_per_gene, aes(y = total_snps, x = gene_type)) + geom_boxplot() +
                       theme_bw() 
+
+grid.arrange(plot_impact, plot_position, plot_total_nb)
 ```
+
+Perform statistical analyses to find out whether genes with SB bias have more SNPs overall (or whether its effects are different from that of the rest of the genes). To check for this perform two types of tests:
+
+* Generalised Linear Model (GLM) using a Poisson distribution
+* Chi2/Fisher test on the proportion of SNPs per gene 
+
+```{r tests_snp_eff_bb_genes, include = FALSE}
+#Perform a glm on the total number of SNPs, comparing SB biased genes with the rest of the genes
+glm_total_nb <- glm(total_snps ~ gene_type, data = plot_snps_per_gene, family = "poisson")
+summary(glm_total_nb)
+#Non-significant, but non-SB genes appear to have MORE SNPs
+
+#Perform similar glms, looking at impact and position
+#Impact
+glm_impact_nb <- glm(nb_snps ~ impact + gene_type, data = snp_effect_impact_parsed, family = "poisson")
+summary(glm_impact_nb)
+#Same
+#Position
+glm_position_nb <- glm(nb_snps ~ position + gene_type, data = snp_effect_position_parsed, family = "poisson")
+summary(glm_position_nb)
+#Same
+
+#Perform Chi2/Fisher tests, looking at the proportion of SNPs per gene in either SB or 'rest of the genes' categories. 
+#Number of SNPs in SB genes
+nb_snps_bb_genes <- sum(plot_snps_per_gene$total_snps[plot_snps_per_gene$gene_type == "bb_gene"])
+nb_snps_rest <- sum(plot_snps_per_gene$total_snps[plot_snps_per_gene$gene_type != "bb_gene"])
+nb_bb_genes <- length(plot_snps_per_gene$total_snps[plot_snps_per_gene$gene_type == "bb_gene"])
+nb_rest <- length(plot_snps_per_gene$total_snps[plot_snps_per_gene$gene_type != "bb_gene"])
+
+#Generate a contingency table
+
+to_test_contingency <- matrix(c(nb_snps_bb_genes, nb_bb_genes, nb_snps_rest, nb_rest),
+                              dimnames = list(c("Nb SNPs", "Nb genes"), c("SB", "Rest")),
+                                              ncol = 2)
+chisq.test(to_test_contingency)
+fisher.test(to_test_contingency)
+#Non-significant
+```
+
 
 
 
