@@ -79,8 +79,19 @@ snp_effect_candidates_impact_parsed <- data.frame(gene_id,
                                                   nb_snps =  c(as.matrix(snp_effect_candidates_impact[, 2:4])),
                                                   impact)
 
+#Modify the names of the impacts
+levels(snp_effect_candidates_impact_parsed$impact) <- c("Low", "Moderate", "Modifier")
+
 plot_impact_candidates <- ggplot(data = snp_effect_candidates_impact_parsed, aes(y = nb_snps, x = gene_id, fill = impact)) + geom_bar(stat = "identity", position = position_dodge()) +
-                            theme_bw()
+                            theme_bw() +
+                            labs(y = "Number of SNPs") +
+                            scale_fill_discrete(name = "Impact") +
+                            theme(axis.title.x = element_blank(),
+                                  axis.text.x  = element_text(size = 14),
+                                  axis.title.y = element_text(size = 18),
+                                  axis.text.y  = element_text(size = 14),
+                                  legend.title = element_text(size = 18),
+                                  legend.text = element_text(size = 15))
 
 #Make plot based on position of the variant
 snp_effect_candidates_position <- snp_effect_candidates[, !grepl("(GeneName)|(impact)",
@@ -95,10 +106,24 @@ snp_effect_candidates_position_parsed <- data.frame(gene_id,
                                                     nb_snps = c(as.matrix(snp_effect_candidates_position[, position_names])),
                                                     position)
 
+#Modify the names of the positions
+levels(snp_effect_candidates_position_parsed$position) <- c("3'UTR", "5'UTR-premature start\ncodon gain", "5'UTR",
+                                                            "Downstream of gene", "Intron", "Missense variant", "Synonymous variant", "Upstream of gene")
+
 plot_position_candidates <- ggplot(data = snp_effect_candidates_position_parsed, aes(y = nb_snps, x = gene_id, fill = position)) + geom_bar(stat = "identity", position = position_dodge()) +
-                                  theme_bw()
+                                  theme_bw() +
+                                  labs(y = "Number of SNPs") +
+                                  scale_fill_discrete(name = "Position effect") +
+                                  theme(axis.title.x = element_blank(),
+                                        axis.text.x  = element_text(size = 14),
+                                        axis.title.y = element_text(size = 18),
+                                        axis.text.y  = element_text(size = 14),
+                                        legend.title = element_text(size = 18),
+                                        legend.text = element_text(size = 15))
 
 grid.arrange(plot_impact_candidates, plot_position_candidates)
+ggsave("results/snp_eff_candidate_genes_position.pdf", plot_position_candidates, width = 30, height = 25, units = "cm")
+ggsave("results/snp_eff_candidate_genes_impact.pdf", plot_impact_candidates, width = 30, height = 25, units = "cm")
 ``` 
 
 ## SNP effect in SB genes compared to the rest of genes
