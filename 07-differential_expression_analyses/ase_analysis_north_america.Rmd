@@ -407,7 +407,7 @@ lfcs_joint_mor_sorted$mor_halves[lfcs_joint_mor_sorted$lfcs_mor > 0] <- "HiP"
 ggplot(lfcs_joint_mor_sorted, aes(x = lfcs_ase, fill = mor_halves)) + geom_density(alpha = 0.3) + theme_bw() +
   labs(x = "Log2 fold difference between variants", y = "Density") +
   scale_fill_discrete(name = "Social form bias",
-                    labels = c("Multiple-queen", "Single-queen")) +
+                    labels = c("Single-queen", "Multiple-queen")) +
   geom_vline(xintercept = 0, color = "red", size = 1.5) +
   theme(panel.border = element_blank(), panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"),
@@ -456,6 +456,8 @@ chisq.test(to_test_chi_sb)
 #Try with Fisher test
 fisher.test(to_test_chi_sb)
 
+#Save the dataframe with the joint LFC values
+save(lfcs_joint_nona, file = "results/lfcs_joint.RData")
 ```
 
 Make a density plot with social-variant information
