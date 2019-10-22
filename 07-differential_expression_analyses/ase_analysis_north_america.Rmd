@@ -447,7 +447,7 @@ pol_bb <- length(which(lfcs_joint_mor_sorted$lfcs_ase > 0 & lfcs_joint_mor_sorte
 
 #Chi2 test
 
-to_test_chi_sb           <- matrix(c(pol_lb, tot_lb, pol_bb, tot_bb), nrow = 2, ncol = 2)
+to_test_chi_sb           <- matrix(c(pol_lb, (tot_lb-pol_lb), pol_bb, (tot_bb-pol_bb)), nrow = 2, ncol = 2)
 colnames(to_test_chi_sb) <- c("Sb", "SB")
 rownames(to_test_chi_sb) <- c("Polygyne_only", "Total")
 
