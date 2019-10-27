@@ -262,7 +262,7 @@ The analysis for the allele specific expression between the SB and Sb variants i
 to_analyse_DESeq2_polyq <- round(to_analyse_DESeq2_polyq)
 #Load the data into DESeq2
 dds_Bb <- DESeqDataSetFromMatrix(countData = to_analyse_DESeq2_polyq,
-                                 colData = colData_Bb, design = ~ allele)
+                                 colData = colData_Bb, design = ~ sample + allele)
 sizeFactors(dds_Bb) <- rep(1, ncol(to_analyse_DESeq2_polyq))
 #Perform the analysis:
 dds_Bb_DE <- DESeq(dds_Bb, betaPrior = TRUE)
