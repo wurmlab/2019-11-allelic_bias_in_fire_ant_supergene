@@ -27,3 +27,8 @@ mv run tmp/
 source ~/crossmaps/bin/activate
 CrossMap.py vcf tmp/run/liftover.chn tmp/common_snps.vcf tmp/Si_gnG_ensembl.fa tmp/ensembl_common.vcf
 deactivate
+
+#Run CrossMap to generate an Ensembl vcf for North America
+source ~/crossmaps/bin/activate
+CrossMap.py vcf tmp/run/liftover.chn input/subset_north_america.vcf tmp/Si_gnG_ensembl.fa tmp/ensembl_na.vcf
+deactivate

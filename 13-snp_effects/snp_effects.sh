@@ -27,3 +27,7 @@ sh generate_ensembl_vcf.sh
 #Run SNPeff on the South American vcf (made verbose by -v)
 java -jar snpEff.jar Solenopsis_invicta -v\
           tmp/ensembl_sa.vcf > tmp/eff_supergene.vcf
+
+#Run SNPeff on the North American vcf (to look for impacts in the social vs ase comparison)
+java -jar snpEff.jar Solenopsis_invicta -v\
+          tmp/ensembl_na.vcf > tmp/eff_supergene_na.vcf
