@@ -19,6 +19,7 @@ library(ggplot2)
 library(plyr)
 library(lmerTest)
 library(quantreg)
+library(eulerr)
 version
 
 for (package in (.packages()) ) {
@@ -814,8 +815,17 @@ ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_body_part.pdf",
 ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_legend_body_part.pdf", plot = p7, device = "pdf", height = 150, width = 297, units = "mm")
 ```
 
+## Euler diagram for the different lists of significant genes
 
+```{r euler_diagram}
+euler_sig_genes <- euler(combinations = list("South America only" = sig_genes_sa,
+                                    "North America only" = sig_genes_na_all,
+                                    "Combined analysis" = sig_genes_both_lme))
 
-
+#Generate plot
+plot(euler_sig_genes, quantities = TRUE, edges = TRUE, labels = list(fontsize = 8))
+## Save:
+ggsave(plot = aver, filename = "results/euler_plot.pdf", width = 20, height = 20, units = "cm")
+```
 
 
