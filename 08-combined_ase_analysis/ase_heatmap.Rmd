@@ -769,20 +769,26 @@ Similar boxplot putting the focus on body parts
 
 ```{r boxplot_ratios_common_sig_only_per_gene_body_part, message = FALSE, warning = FALSE}
 
-fill_colors <- c(rgb(228,26,28, maxColorValue = 255), rgb(55,126,184, maxColorValue = 255),
-                 rgb(77,175,74, maxColorValue = 255), rgb(152,78,163, maxColorValue = 255),
+fill_colors <- c(rgb(152,78,163, maxColorValue = 255), rgb(55,126,184, maxColorValue = 255),
+                 rgb(77,175,74, maxColorValue = 255), rgb(228,26,28, maxColorValue = 255),
                  rgb(255,127,0, maxColorValue = 255))
-contour_colors <- c(rgb(160,18,18, maxColorValue = 255), rgb(39, 88, 129, maxColorValue = 255),
-                 rgb(54, 122, 52, maxColorValue = 255), rgb(106, 55, 114, maxColorValue = 255),
+contour_colors <- c(rgb(106, 55, 114, maxColorValue = 255), rgb(39, 88, 129, maxColorValue = 255),
+                 rgb(54, 122, 52, maxColorValue = 255), rgb(160,18,18, maxColorValue = 255),
                  rgb(179,89,0, maxColorValue = 255))
 
+#Order body parts as follow: Worker, Queen head, Queen thorax, Queen Abdomen, North America queen
+body_part_factor <- factor(parsed_counts_sig_ratios_common_genes$body_part,
+                           levels = c("W", "QH", "QT", "QA", "whole_body_queen"))
+parsed_counts_sig_ratios_common_genes$body_part <- body_part_factor
+
+#Plots
 p7 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = body_part, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1.1), 
                                                                                                        fill = body_part, color = body_part), outlier.size = 0.5) +
         scale_fill_manual(values = fill_colors,
-                          labels = c("Queen Abdomen\nSouth America", "Queen Head\nSouth America", "Queen Thorax\nSouth America", "Whole worker\nSouth America", "Whole queen\nNorth America"),
+                          labels = c("Whole worker\nSouth America", "Queen Head\nSouth America", "Queen Thorax\nSouth America", "Queen Abdomen\nSouth America", "Whole queen\nNorth America"),
                           name = "Caste, body part\npopulation") +
         scale_color_manual(values = contour_colors,
-                           labels = c("Queen Abdomen\nSouth America", "Queen Head\nSouth America", "Queen Thorax\nSouth America", "Whole worker\nSouth America", "Whole queen\nNorth America"),
+                           labels = c("Whole worker\nSouth America", "Queen Head\nSouth America", "Queen Thorax\nSouth America", "Queen Abdomen\nSouth America", "Whole queen\nNorth America"),
                            name = "Caste, body part\npopulation") +
         facet_grid(. ~ gene) +
         geom_hline(yintercept = 0, color = "black") + geom_hline(yintercept = -1, color = "darkgrey", linetype = "dashed") + 
