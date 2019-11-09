@@ -400,8 +400,8 @@ lfcs_joint_mor_sorted$mor_halves <- NA
 
 lfcs_joint_mor_sorted$mor_halves[1:round((1 / 2 * nrow(lfcs_joint_mor_sorted)))] <- "HiM"
 lfcs_joint_mor_sorted$mor_halves[(round(1 / 2 * nrow(lfcs_joint_mor_sorted)) + 1):nrow(lfcs_joint_mor_sorted)] <- "HiP"
-lfcs_joint_mor_sorted$mor_halves[lfcs_joint_mor_sorted$lfcs_mor < 0] <- "HiM"
-lfcs_joint_mor_sorted$mor_halves[lfcs_joint_mor_sorted$lfcs_mor > 0] <- "HiP"
+#lfcs_joint_mor_sorted$mor_halves[lfcs_joint_mor_sorted$lfcs_mor < 0] <- "HiM"
+#lfcs_joint_mor_sorted$mor_halves[lfcs_joint_mor_sorted$lfcs_mor > 0] <- "HiP"
 
 #Now it's just a matter of comparing the B vs b distributions of LFCs between quarters
 ggplot(lfcs_joint_mor_sorted, aes(x = lfcs_ase, fill = mor_halves)) + geom_density(alpha = 0.3) + theme_bw() +
@@ -458,7 +458,74 @@ fisher.test(to_test_chi_sb)
 
 #Save the dataframe with the joint LFC values
 save(lfcs_joint_nona, file = "results/lfcs_joint.RData")
+
+#Generate histogram instead of density plot
+ggplot(lfcs_joint_mor_sorted, aes(x = lfcs_ase, fill = mor_halves)) + 
+  geom_histogram(binwidth = 0.3, alpha = .5, position="identity") + theme_bw() +
+  labs(x = "Log2 expression ratios between variants", y = "Count") +
+  scale_fill_discrete(name = "Social form bias",
+                    labels = c("Single-queen", "Multiple-queen")) +
+  geom_vline(xintercept = 0, color = "red", size = 0.7) +
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"),
+        axis.title.x = element_text(face = "bold", size = 20),
+        axis.text.x  = element_text(vjust = 0.5, size = 18),
+        axis.title.y = element_text(face = "bold", size = 20),
+        axis.text.y  = element_text(vjust = 0.5, size = 18),
+        legend.title = element_text(size = 18, face="bold"),
+        legend.text = element_text(size = 15))
+#Save the plot
+ggsave(filename = "results/variant_hist_social_form.pdf", device = "pdf",
+       width = 7, height = 3.5, units = "in")
 ```
+
+Make a boxplot using similar info, but instead of halves, use quarters
+```{r test_morandin_ase_comparison, message = FALSE, warning = FALSE}
+####Compare the ASE distributions across a Mono vs Poly gradient
+###### Select the Morandin LFCs from 4 sections of the dataset
+
+
+#Using only two halves (M vs P)
+lfcs_joint_mor_sorted$mor_quarters <- NA
+
+lfcs_joint_mor_sorted$mor_quarters[1:round((1 / 4 * nrow(lfcs_joint_mor_sorted)))] <- "vHiM"
+lfcs_joint_mor_sorted$mor_quarters[(round((1 / 4 * nrow(lfcs_joint_mor_sorted))) + 1):
+                                   round((2 / 4 * nrow(lfcs_joint_mor_sorted)))] <- "HiM"
+
+lfcs_joint_mor_sorted$mor_quarters[(round((2 / 4 * nrow(lfcs_joint_mor_sorted))) + 1):
+                                   round((3 / 4 * nrow(lfcs_joint_mor_sorted)))] <- "HiP"
+
+lfcs_joint_mor_sorted$mor_quarters[(round((3 / 4 * nrow(lfcs_joint_mor_sorted))) + 1):
+                                   nrow(lfcs_joint_mor_sorted)] <- "vHiP"
+
+#Order the quarters appropriately
+lfcs_joint_mor_sorted$mor_quarters <- factor(lfcs_joint_mor_sorted$mor_quarters,
+                                             levels = c("vHiM", "HiM", "HiP", "vHiP"))
+
+#Now it's just a matter of comparing the B vs b distributions of LFCs between quarters
+ggplot(lfcs_joint_mor_sorted, aes(y = lfcs_ase, x = mor_quarters)) + geom_violin() + theme_bw() +
+  geom_jitter(shape=16, position=position_jitter(0.2)) 
+
+#Kolmogorov-Smirnov tests between quarters to see how different the distributions are
+ks.test(lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "HiM"],
+        lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "HiP"])
+
+ks.test(lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "vHiM"],
+        lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "vHiP"])
+
+ks.test(lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "HiM"],
+        lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "vHiP"])
+
+ks.test(lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "vHiM"],
+        lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "HiP"])
+
+ks.test(lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "vHiM"],
+        lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "HiM"])
+
+ks.test(lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "vHiP"],
+        lfcs_joint_mor_sorted$lfcs_ase[lfcs_joint_mor_sorted$mor_quarters == "HiP"])
+```
+
 
 Make a density plot with social-variant information
 
