@@ -49,6 +49,25 @@ ase_files_ar
 #Load all the files in R as a single table
 ase_ar <- do.call(rbind,lapply(ase_files_ar, read.table, header = TRUE)) 
 
+#Re-assign the alleles that were intially mis-assigned. (A few reference alleles are Sb and vice-versa)
+snps_to_change <- read.table("input/misassigned_snps_sa.tab", stringsAsFactors = FALSE)
+
+snps_ids_to_change <- paste(snps_to_change$V1, snps_to_change$V2, sep = ":")
+
+all_snps_ase <- ase_ar$variantID
+all_snps_ase <- gsub(pattern = "_[A-Z]/[A-Z]",
+                     replacement = "",
+                     x = all_snps_ase)
+
+pos_to_change <- which(all_snps_ase %in% snps_ids_to_change)
+
+new_ref <- ase_ar[pos_to_change, ]$altCount
+new_alt <- ase_ar[pos_to_change, ]$refCount
+
+ase_ar[pos_to_change, ]$altCount <- new_alt
+ase_ar[pos_to_change, ]$refCount <- new_ref
+
+
 #The table loaded contains all ase counts for the AR colonies. This includes different castes (W and Q) and different tissues within queens (Head, Thorax and Abdomen). 
 #Each file has different lengths since not all individuals have the same variants.
 ```
@@ -305,7 +324,7 @@ dds_ar <- DESeqDataSetFromMatrix(countData = to_analyse_DESeq2_ar, colData = col
 #Perform the analysis replacing the sizeFactors: 
 sizeFactors(dds_ar) <- rep(1, ncol(to_analyse_DESeq2_ar))
 #Perform DESeq analysis
-dds_deg_ar <- DESeq(dds_ar, betaPrior = FALSE)
+dds_deg_ar <- DESeq(dds_ar, betaPrior = TRUE)
 
 #Save the DESeq2 object
 save(dds_deg_ar, file = "results/dds_Sb_vs_SB_south_america.RData")

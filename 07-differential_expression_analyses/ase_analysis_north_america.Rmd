@@ -51,6 +51,24 @@ ase_files_ppq
 #Load all the files in R as a single table
 ase <- do.call(rbind, lapply(ase_files_ppq, read.table, header = TRUE))
 
+#Re-assign the alleles that were intially mis-assigned. (A few reference alleles are Sb and vice-versa)
+snps_to_change <- read.table("input/misassigned_snps_na.tab", stringsAsFactors = FALSE)
+
+snps_ids_to_change <- paste(snps_to_change$V1, snps_to_change$V2, sep = ":")
+
+all_snps_ase <- ase$variantID
+all_snps_ase <- gsub(pattern = "_[A-Z]/[A-Z]",
+                     replacement = "",
+                     x = all_snps_ase)
+
+pos_to_change <- which(all_snps_ase %in% snps_ids_to_change)
+
+new_ref <- ase[pos_to_change, ]$altCount
+new_alt <- ase[pos_to_change, ]$refCount
+
+ase[pos_to_change, ]$altCount <- new_alt
+ase[pos_to_change, ]$refCount <- new_ref
+
 #The table loaded contains all ase counts for Queens from the Wurm 2011 data. Each file has different lengths since not all individuals
 #have the same variants.
 ```
@@ -321,8 +339,8 @@ chisq.test(to_test_chi)
 It has been established that the SB alleles tend to be more highly expressed than their Sb counterparts. But of the few genes whose Sb allele is more highly expressed, are those genes also more highly expressed in general in polygyne queens? To test for this, the results from the comparison between social forms needs to be loaded into R again.
 
 ```{r load_morandin_results, message = FALSE}
-load("input/2019-01-08_results_deseq2_queens_mor.RData")
-load("input/2019-01-08_results_deseq2_workers_mor.RData")
+load("../2018-12-07-social_form_comparison/results/2019-10-30_results_deseq2_queens_mor.RData")
+load("../2018-12-07-social_form_comparison/results/2019-10-30_results_deseq2_workers_mor.RData")
 ```
 
 Next, a dataset with both comparisons needs to be prepared, ensuring that all the genes are the same in both datasets and are in the same order.
