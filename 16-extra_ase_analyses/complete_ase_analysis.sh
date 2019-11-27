@@ -19,5 +19,16 @@ ls tmp/trimmed_reads_fontana_etal/* | parallel 'fastqc -o tmp/fastqc_trimmed' ::
 source ~/multiqc/bin/activate
 multiqc tmp/fastqc_trimmed
 deactivate
-
 #All adapter removed
+#Once the reads have been cleaned, align to the normal reference and to the Sb-ified reference.
+#The samples used here were collected in Taiwan. We do not have SNPs between variants for this particular population,
+#but the Taiwan populations of S.invicta are derived from the invasive North American ones (Ascunce et al 2011, Science).
+#So here we will be using the Sb-ified reference generated using the information from North American populations:
+
+#First, generate a splice junction file for each reference
+qsub star_alignment_all_samples_bigb_fontana_etal.sh
+qsub star_alignment_all_samples_littleb_fontana_etal.sh
+
+#Once these files have been generated, run the alignment per sample
+qsub star_alignment_fontana_etal_bigb.array.sh
+qsub star_alignment_fontana_etal_littleb.array.sh
