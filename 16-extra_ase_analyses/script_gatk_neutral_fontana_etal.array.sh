@@ -5,8 +5,8 @@
 #$ -l h_vmem=2G   # Request 2GB RAM
 #$ -t 1-8
 
-INPUT_FILE=$(sed -n "${SGE_TASK_ID}p" path_to_bam.ids)
-OUTPUT_FILE=$(sed -n "${SGE_TASK_ID}p" samples.ids)
+INPUT_FILE=$(sed -n "${SGE_TASK_ID}p" tmp/path_to_bam.ids)
+OUTPUT_FILE=$(sed -n "${SGE_TASK_ID}p" tmp/samples.ids)
 
 
 java -jar GATK -R tmp/reference.fna -T ASEReadCounter -I ${INPUT_FILE} \

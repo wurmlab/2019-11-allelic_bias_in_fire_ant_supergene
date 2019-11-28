@@ -40,7 +40,7 @@ sh wasp_reference_bias_free_fontana_etal.sh
 
 #Once the reference-bias free bam files have been generated, the actual ASE read count can be run using GATK's ASEReadCounter
 #Generate a file with the path to all neutral bam files for North America
-ls tmp/free_bias_bam/with_rg/*bam > path_to_bam.ids
+ls tmp/free_bias_bam/with_rg/*bam > tmp/path_to_bam.ids
 
 #GATK needs both an index and a dict file to run:
 samtools faidx tmp/reference.fna
