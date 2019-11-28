@@ -2,6 +2,7 @@
 #Script to perform the complete ASE analysis using a different dataset, in this case, the data from SBSB and SBSb virgin
 #polygyne queens from Fontana et al 2019 Mol Ecol.
 module load fastqc
+module load samtools/1.9
 #FIRST STEP: READ CLEANING, QC AND ALIGNMENT--------------------------------------------------------------------------------
 
 #Remove adapters from the raw RNAseq reads of the Solenopsis invicta queen samples from Fontana et al 2019
@@ -32,3 +33,23 @@ qsub star_alignment_all_samples_littleb_fontana_etal.sh
 #Once these files have been generated, run the alignment per sample
 qsub star_alignment_fontana_etal_bigb.array.sh
 qsub star_alignment_fontana_etal_littleb.array.sh
+
+#The next step is to merge the bam files per sample and run the last step of the WASP pipeline to ensure that reference bias
+#is removed.
+sh wasp_reference_bias_free_fontana_etal.sh
+
+#Once the reference-bias free bam files have been generated, the actual ASE read count can be run using GATK's ASEReadCounter
+#Generate a file with the path to all neutral bam files for North America
+ls tmp/free_bias_bam/with_rg/*bam > path_to_bam.ids
+
+#GATK needs both an index and a dict file to run:
+samtools faidx tmp/reference.fna
+java -jar picard CreateSequenceDictionary REFERENCE=tmp/reference.fna OUTPUT=tmp/reference.fna.dict
+
+#GATK needs a sorted vcf to run
+java -jar picard SortVcf \
+      I=input/subset.vcf \
+      O=tmp/sorted_subset.vcf
+
+
+qsub script_gatk_neutral_fontana_etal.array.sh
