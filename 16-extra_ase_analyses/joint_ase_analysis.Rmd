@@ -360,6 +360,13 @@ Get the correlation of lfcs between SB and Sb in different populations (Mark the
 #Get lfcs for each population, aggregate lfcs per body part/sample using the mean
 common_sa <- subset(x = parsed_counts_all_ratios_common_genes,
                   subset = population == "south_america")
+#Keep only samples in the 7c mitochondrial phylogeny group, the closest to NA (according to Dr. Stolle)
+#AR111=7c
+#AR112=7c
+#AR114=7c
+# colonies_to_keep <- "111|112|114"
+# colonies_pos <- grep(pattern = colonies_to_keep, x = common_sa$sample)
+# common_sa <- common_sa[colonies_pos, ]
 lfcs_sa <- aggregate(lfc_norm ~ gene, data = common_sa, mean)
 
 common_na <- subset(x = parsed_counts_all_ratios_common_genes,
@@ -380,23 +387,23 @@ gene_expr <- parsed_counts_all_ratios_common_genes
 gene_expr$expr <- gene_expr$littleb + gene_expr$bigB
 mean_expr_gene <- aggregate(expr ~ gene, data = gene_expr, median)
 
-pdf("results/na_sa_lfcs.pdf", width = 10, height = 7.9)
+#pdf("results/na_sa_lfcs.pdf", width = 10, height = 7.9)
 plot(lfcs_na$lfc_norm, lfcs_sa$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr))
 abline(h = 0, col = "red")
 abline(v = 0, col = "red")
-dev.off()
+#dev.off()
 
-pdf("results/na_tai_lfcs.pdf", width = 10, height = 7.9)
+#pdf("results/na_tai_lfcs.pdf", width = 10, height = 7.9)
 plot(lfcs_na$lfc_norm, lfcs_taiwan$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr))
 abline(h = 0, col = "red")
 abline(v = 0, col = "red")
-dev.off()
+#dev.off()
 
-pdf("results/sa_tai_lfcs.pdf", width = 10, height = 7.9)
+#pdf("results/sa_tai_lfcs.pdf", width = 10, height = 7.9)
 plot(lfcs_sa$lfc_norm, lfcs_taiwan$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr))
 abline(h = 0, col = "red")
 abline(v = 0, col = "red")
-dev.off()
+#dev.off()
 
 ```
 Get the correlation of lfcs between genotype and social form comparisons in North America and Taiwan
@@ -431,11 +438,13 @@ colors_sig_soc_form_genot <- rownames(res_taiwan_genot) %in% genes_sig_genot_soc
 colors_soc_form_genot[colors_sig_soc_form_genot] <- "red"
 
 #Plot the LFCs for each comparison
+
+pdf("results/genotype_social_form_corr.pdf", width = 10, height = 7.9)
 plot(res_taiwan_genot$log2FoldChange, res_na_soc_form$log2FoldChange,
      col = colors_soc_form_genot, cex = log(means_both_datasets))
 abline(h = 0, col = "red")
 abline(v = 0, col = "red")
-
+dev.off()
 
 ```
 CONTINUE HERE!!!!!!!!!!!! -----------------------------------------------------------------------------
