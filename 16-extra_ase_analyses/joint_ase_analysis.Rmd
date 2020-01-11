@@ -1,0 +1,870 @@
+---
+title: "Sb to SB expression differences all data"
+author: "Carlos Martinez Ruiz"
+date: "06 December 2019"
+output: pdf_document
+---
+
+```{r setup, include = FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)#, fig.path = 'results/')
+```
+```{r libraries, echo = FALSE, message = FALSE, warning = FALSE}
+#Load all libraries
+library(tximport)
+library(readr)
+library(DESeq2)
+library(GenomicRanges)
+library(GenomicFeatures)
+library(ggplot2)
+library(plyr)
+library(lmerTest)
+library(quantreg)
+library(eulerr)
+version
+
+for (package in (.packages()) ) {
+ print(paste("Package", package, "version", package.version(package)))
+}
+```
+
+Load the data from the Sb vs SB allele specific comparison for both North American, South American and Taiwanese populations from Fontana et al 2019, extract read counts.
+
+```{r load_data, message = FALSE}
+load("input/dds_Sb_vs_SB_north_america.RData")
+load("input/dds_Sb_vs_SB_south_america.RData")
+load("input/dds_Sb_vs_SB_fontana.RData")
+
+#Get normalised counts
+dds_north_america <- estimateSizeFactors(dds_Bb_DE)
+dds_south_america <- estimateSizeFactors(dds_deg_ar)
+dds_taiwan <- estimateSizeFactors(dds_Bb_DE_taiwan)
+
+counts_north_america <- counts(dds_north_america, normalized = TRUE)
+counts_south_america <- counts(dds_south_america, normalized = TRUE)
+counts_taiwan <- counts(dds_taiwan, normalized = TRUE)
+```
+
+How many genes do all datasets have in common?
+
+```{r genes_in_common, message = FALSE}
+genes_south_america <- row.names(counts_south_america)
+genes_north_america <- row.names(counts_north_america)
+genes_taiwan <- row.names(counts_taiwan)
+  
+genes_america <- genes_north_america[genes_north_america %in% genes_south_america]
+genes_both <- genes_taiwan[genes_taiwan %in% genes_america]
+
+#Number of genes present in all datsets:
+length(genes_both)
+```
+
+122 out of 125 genes found with fixed differences in South America are also present in North America and Taiwan
+
+##Parse data frames
+
+Parse data frame to make it ggplot friendly
+```{r parse_dataset, message = FALSE}
+#Parse the dataset to make it ggplot friendly
+samples_north_america <- colnames(counts_north_america)
+parsed_counts_north_america <- data.frame(c(counts_north_america),
+                                          rep(samples_north_america, each = nrow(counts_north_america)),
+                                          rep(genes_north_america, ncol(counts_north_america)),
+                                          rep("north_america", (nrow(counts_north_america) * ncol(counts_north_america)))
+                                          )
+colnames(parsed_counts_north_america) <- c("counts", "sample", "gene", "population")
+
+samples_south_america <- colnames(counts_south_america)
+parsed_counts_south_america <- data.frame(c(counts_south_america),
+                                          rep(samples_south_america, each = nrow(counts_south_america)),
+                                          rep(genes_south_america, ncol(counts_south_america)),
+                                          rep("south_america", (nrow(counts_south_america) * ncol(counts_south_america)))
+                                          )
+colnames(parsed_counts_south_america) <- c("counts", "sample", "gene", "population")
+
+samples_taiwan <- colnames(counts_taiwan)
+parsed_counts_taiwan <- data.frame(c(counts_taiwan),
+                                          rep(samples_taiwan, each = nrow(counts_taiwan)),
+                                          rep(genes_taiwan, ncol(counts_taiwan)),
+                                          rep("taiwan", (nrow(counts_taiwan) * ncol(counts_taiwan)))
+                                          )
+colnames(parsed_counts_taiwan) <- c("counts", "sample", "gene", "population")
+
+
+#Merge all datasets
+parsed_counts_all <- rbind(parsed_counts_north_america, parsed_counts_south_america, parsed_counts_taiwan)
+parsed_counts_all$allele <- gsub(x = parsed_counts_all$sample, pattern = ".+_", replacement = "")
+parsed_counts_all$allele <- ifelse(parsed_counts_all$allele == "B" , "bigB", "littleb")
+parsed_counts_all <- parsed_counts_all[order(parsed_counts_all$allele, parsed_counts_all$sample), ]
+
+```
+
+
+Data using count ratios between variants for North American populations
+```{r ratios_all_data, message = FALSE}
+#Parse the dataset to make it ggplot friendly
+#Separate big B and little b samples
+samples_north_america_littleb <- grep(x = samples_north_america, pattern = "_b", value = TRUE)
+samples_north_america_bigB <- grep(x = samples_north_america, pattern = "_B", value = TRUE)
+samples_north_america_no_allele <- unique(gsub(x = samples_north_america, pattern = "_[Bb]", replacement = ""))
+
+counts_north_america_littleb <- counts_north_america[, samples_north_america_littleb]
+counts_north_america_bigB <- counts_north_america[, samples_north_america_bigB]
+
+
+parsed_counts_north_america_ratio <- data.frame(c(counts_north_america_littleb),
+                                                c(counts_north_america_bigB),
+                                                rep(samples_north_america_no_allele, each = nrow(counts_north_america)),
+                                                rep(genes_north_america, length(samples_north_america_no_allele)),
+                                                rep("north_america", (nrow(counts_north_america) * length(samples_north_america_no_allele)))
+                                                )
+colnames(parsed_counts_north_america_ratio) <- c("littleb", "bigB", "sample", "gene", "population")
+
+parsed_counts_north_america_ratio$total_counts <- parsed_counts_north_america_ratio$littleb + parsed_counts_north_america_ratio$bigB
+parsed_counts_north_america_ratio$lfc <- log2((parsed_counts_north_america_ratio$bigB +1) / (parsed_counts_north_america_ratio$littleb +1))
+
+#Order the genes by mean read count
+mean_reads_north_america <- ddply(parsed_counts_north_america_ratio, .(gene), summarize, mean =
+                                  mean(total_counts))
+mean_reads_north_america <- mean_reads_north_america[order(mean_reads_north_america$mean), ]
+gene_order_north_america <- rep(mean_reads_north_america$gene,
+                                length(unique(samples_north_america_no_allele)))
+
+#Use the sorted genes to sort the parsed counts
+parsed_counts_north_america_ratio$gene <- factor(parsed_counts_north_america_ratio$gene, levels = mean_reads_north_america$gene)
+
+parsed_counts_north_america_ratio_subset <- parsed_counts_north_america_ratio[parsed_counts_north_america_ratio$gene %in% genes_both, ]
+
+#Parse the dataset to make it ggplot friendly
+#Separate big B and little b samples
+samples_south_america_littleb <- grep(x = samples_south_america, pattern = "_b", value = TRUE)
+samples_south_america_bigB <- grep(x = samples_south_america, pattern = "_B", value = TRUE)
+samples_south_america_no_allele <- unique(gsub(x = samples_south_america, pattern = "_[Bb]", replacement = ""))
+
+counts_south_america_littleb <- counts_south_america[, samples_south_america_littleb]
+counts_south_america_bigB <- counts_south_america[, samples_south_america_bigB]
+
+parsed_counts_south_america_ratio <- data.frame(c(counts_south_america_littleb),
+                                                c(counts_south_america_bigB),
+                                                rep(samples_south_america_no_allele,
+                                                    each =nrow(counts_south_america)),
+                                                rep(genes_south_america,
+                                                    length(samples_south_america_no_allele)),
+                                                rep("south_america",
+                                                    (nrow(counts_south_america) * length(samples_south_america_no_allele)))
+                                                )
+colnames(parsed_counts_south_america_ratio) <- c("littleb", "bigB", "sample", "gene", "population")
+
+parsed_counts_south_america_ratio$total_counts <- parsed_counts_south_america_ratio$littleb + parsed_counts_south_america_ratio$bigB
+parsed_counts_south_america_ratio$lfc <- log2((parsed_counts_south_america_ratio$bigB +1) / (parsed_counts_south_america_ratio$littleb +1))
+
+#Get mean read count for South American samples
+mean_reads_south_america <- ddply(parsed_counts_south_america_ratio, .(gene), summarize, mean =
+                                  mean(total_counts))
+mean_reads_south_america <- mean_reads_south_america[order(mean_reads_south_america$mean), ]
+
+#For Taiwan
+samples_taiwan_littleb <- grep(x = samples_taiwan, pattern = "_b", value = TRUE)
+samples_taiwan_bigB <- grep(x = samples_taiwan, pattern = "_B", value = TRUE)
+samples_taiwan_no_allele <- unique(gsub(x = samples_taiwan, pattern = "_[Bb]", replacement = ""))
+
+counts_taiwan_littleb <- counts_taiwan[, samples_taiwan_littleb]
+counts_taiwan_bigB <- counts_taiwan[, samples_taiwan_bigB]
+
+parsed_counts_taiwan_ratio <- data.frame(c(counts_taiwan_littleb),
+                                                c(counts_taiwan_bigB),
+                                                rep(samples_taiwan_no_allele,
+                                                    each =nrow(counts_taiwan)),
+                                                rep(genes_taiwan,
+                                                    length(samples_taiwan_no_allele)),
+                                                rep("taiwan",
+                                                    (nrow(counts_taiwan) * length(samples_taiwan_no_allele)))
+                                                )
+colnames(parsed_counts_taiwan_ratio) <- c("littleb", "bigB", "sample", "gene", "population")
+
+parsed_counts_taiwan_ratio$total_counts <- parsed_counts_taiwan_ratio$littleb + parsed_counts_taiwan_ratio$bigB
+parsed_counts_taiwan_ratio$lfc <- log2((parsed_counts_taiwan_ratio$bigB +1) / (parsed_counts_taiwan_ratio$littleb +1))
+
+#Get mean read count for Taiwan samples
+mean_reads_taiwan <- ddply(parsed_counts_taiwan_ratio, .(gene), summarize, mean =
+                                  mean(total_counts))
+mean_reads_taiwan <- mean_reads_taiwan[order(mean_reads_taiwan$mean), ]
+
+#Get the list of genes overlapping in all datasets
+mean_reads_america <- merge(mean_reads_north_america, mean_reads_south_america, by = "gene")
+colnames(mean_reads_america) <- c("gene", "mean_na", "mean_sa")
+mean_reads_all <- merge(mean_reads_america, mean_reads_taiwan, by = "gene")
+colnames(mean_reads_all) <- c("gene", "mean_na", "mean_sa", "mean_taiwan")
+
+
+#Plot means per population
+plot(log(mean_reads_all$mean_na),
+     log(mean_reads_all$mean_sa))
+
+plot(log(mean_reads_all$mean_na),
+     log(mean_reads_all$mean_taiwan))
+
+plot(log(mean_reads_all$mean_sa),
+     log(mean_reads_all$mean_taiwan))
+
+
+mean_reads_all_sorted <- mean_reads_all[order(mean_reads_all$mean_na), ]
+parsed_counts_south_america_ratio$gene <- factor(parsed_counts_south_america_ratio$gene, levels = mean_reads_all_sorted$gene)
+
+#Add body part as a factor
+parsed_counts_south_america_ratio$body_part <- gsub(x = parsed_counts_south_america_ratio$sample,
+                                                    pattern = "([0-9]+[BC]?)([A-Z]+)", replacement = "\\2")
+
+parsed_counts_taiwan_ratio$gene <- factor(parsed_counts_taiwan_ratio$gene, levels = mean_reads_all_sorted$gene)
+
+#Ensure the datasets for both populations have the same genes.
+parsed_counts_north_america_ratio$body_part <- rep("whole_body_queen", nrow(parsed_counts_north_america_ratio))
+parsed_counts_taiwan_ratio$body_part <- rep("whole_body_queen_taiwan", nrow(parsed_counts_taiwan_ratio))
+
+parsed_counts_all_ratios_common_genes <- rbind(parsed_counts_north_america_ratio, parsed_counts_south_america_ratio, parsed_counts_taiwan_ratio)
+parsed_counts_all_ratios_common_genes <- parsed_counts_all_ratios_common_genes[parsed_counts_all_ratios_common_genes$gene %in% genes_both, ]
+```
+
+
+Plot heatmap by read counts for genes present in both populations
+
+```{r plot_heatmap_read_counts_compare_populations, message = FALSE}
+#Ensure the datasets for both populations have the same genes.
+parsed_counts_all_common_genes <- parsed_counts_all[parsed_counts_all$gene %in% genes_both, ]
+
+#Add a body_part factor
+parsed_counts_all_common_genes$body_part <- gsub(x = parsed_counts_all_common_genes$sample,
+                                                 pattern = "([0-9]+[BC]?Q?)([A-Z])", replacement = "\\2")
+parsed_counts_all_common_genes$body_part <- gsub(x = parsed_counts_all_common_genes$body_part,
+                                                 pattern = "[0-9]?_[Bb]", replacement = "")
+
+#Make sure the heatmap is plotted ordered by allele
+levels_bigB <- grep("_B", levels(parsed_counts_all_common_genes$sample), value = TRUE)
+levels_littleb <- grep("_b", levels(parsed_counts_all_common_genes$sample), value = TRUE)
+all_levels <- c(levels_bigB, levels_littleb)
+parsed_counts_all_common_genes$sample <- factor(parsed_counts_all_common_genes$sample,
+                                                levels = all_levels)
+
+#Get the names for the x lables in the heatmap (SB vs Sb)
+allele_names_x_axis <- gsub(x = all_levels, pattern = ".+_", replacement = "")
+
+ggplot(parsed_counts_all_common_genes, aes(x = sample, y = gene)) + geom_tile(aes(fill = log2(counts + 1)), colour = "grey50") +
+  facet_grid(. ~ body_part, scales = "free", space = "free") +
+  scale_fill_gradient(low = "yellow" , high = "blue", name="log2 Estimated \nnormalized counts") +
+  theme_bw() + theme( panel.grid.major=element_blank()) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank()) +
+  theme(strip.text.x = element_text(size=20)) + theme(legend.title = element_text(size=15, face="bold"),
+                                                      legend.text = element_text(size=13, face="bold"))
+
+```
+
+
+## Fisher's combined probability test
+
+Because it is difficult to compare North and South American p values directly, the results of both tests will be fused together using (Fisher's method)<https://en.wikipedia.org/wiki/Fisher%27s_method>. This method will test whether the combined p value of both analyses is significant.
+
+```{r fisher_combined_test, message = FALSE}
+#Get p values for all genes
+results_north_america <- results(dds_Bb_DE)
+results_south_america <- results(dds_deg_ar)
+results_taiwan <- results(dds_Bb_DE_taiwan)
+
+#Obtain p values for genes present only in both datasets
+results_north_america_subset <- results_north_america[genes_both, ]
+results_south_america_subset <- results_south_america[genes_both, ]
+results_taiwan_subset <- results_taiwan[genes_both, ]
+
+#Get a vector of X2 values based on the combination of p values of both datasets
+combined_ps <- -2 * log((results_north_america_subset$pvalue + results_north_america_subset$pvalue +
+                           results_taiwan_subset$pvalue))
+
+#Obtain new p values based on X2 distribution
+new_ps <- pchisq(combined_ps, df = 5, lower.tail = FALSE)
+
+#Adjust p values using the Benjamini and Hochberg method
+new_ps_adjust <- p.adjust(new_ps, method = "BH")
+
+#Because the genes where in the same order, the new p values can be named directly:
+names(new_ps_adjust) <- genes_both
+
+#Retrieve significant genes from the combined p values
+sig_genes_both <- names(new_ps_adjust[new_ps_adjust < 0.05])
+#None
+```
+
+
+## lmer for NA, SA and Taiwan genes, are there significant common patterns in expression differences?
+
+The Fisher's method for p values combination only takes the p values, and is blind to any other information like, for instance, whether the direction of expression is the same in both comparisons. 
+To overcome this, I will run an lme that will account for tissue and population, a combined test that cannot be run on DESeq. The output should tell us which genes are DE between variants across populations.
+
+```{r lmer_na_sa_taiwan, message = FALSE}
+
+#Normalise the LFCs between factors using Z scores (center in normal distribution)
+#Calculate the mean and sd lfcs per body part/population
+agg_means <- aggregate(lfc ~ body_part, data = parsed_counts_all_ratios_common_genes, mean)
+agg_sd <- aggregate(lfc ~ body_part, data = parsed_counts_all_ratios_common_genes, sd)
+
+for_z_scores <- merge(agg_means, agg_sd, by = "body_part")
+colnames(for_z_scores) <- c("body_part", "mean_body_part", "sd_body_part")
+
+#Add means and sd to the main dataset
+parsed_counts_all_ratios_common_genes <- merge(for_z_scores, parsed_counts_all_ratios_common_genes)
+
+#Get the normalised lfcs
+parsed_counts_all_ratios_common_genes$lfc_norm <- (parsed_counts_all_ratios_common_genes$lfc - parsed_counts_all_ratios_common_genes$mean_body_part) /
+                                                   parsed_counts_all_ratios_common_genes$sd_body_part
+
+#Get an estimate of the relationship between read counts and its effect on LFC variance
+results_north_america_df <- as.data.frame(results_north_america)
+plot(log(results_north_america_df$baseMean), 1 / (results_north_america_df$lfcSE)^2)
+#Looks quadratic?
+yvals <- 1 / (results_north_america_df$lfcSE) ^ 2 
+xvals <- log(results_north_america_df$baseMean)
+se_reads <- lm(yvals ~ xvals + I(xvals ^ 2) + I(xvals ^ 3))
+
+plot(xvals, yvals)
+re_order <- order(xvals) 
+lines(xvals[re_order], fitted(se_reads)[re_order])
+
+#Pretty good fit. Use the model between log of read counts and variance to caculate the weights for the lfcs estimates 
+weights_model <- predict(se_reads,
+                         data.frame(xvals = log(parsed_counts_all_ratios_common_genes$total_counts + 0.1)))
+#Make sure there are no 0s or negative values for the model (otherwise it won't converge). This removes replicates for genes that
+#convey no information anyway
+for_model <- parsed_counts_all_ratios_common_genes
+for_model$weights <- weights_model 
+for_model <- for_model[for_model$weights > 0, ]
+
+#Run model
+lme_populations <- lmer(lfc_norm ~ 0 + gene * population + (1|body_part:gene), data = for_model,
+                        weights = weights)
+
+# extract coefficients
+coefs <- data.frame(coef(summary(lme_populations)))
+#Adjust p values
+coefs$padj <- p.adjust(coefs$Pr...t.., method = "BH")
+#Significant genes (only those with main gene effects are considered)
+sig_genes_both_lme <- coefs[coefs$padj < 0.05, ]
+
+#Get the names of the significant genes from the model (main effects only)
+sig_genes_both_lme <- rownames(sig_genes_both_lme)
+#Get main effects only
+sig_genes_both_lme <- sig_genes_both_lme[!grepl(pattern = ":population", x = sig_genes_both_lme)]
+#Clean the names
+sig_genes_both_lme <- gsub(pattern = "gene", replacement = "", x = sig_genes_both_lme)
+  
+```
+
+Get the correlation of lfcs between SB and Sb in different populations (Mark the significant genes of interest)
+```{r ase_lfcs_correlations_pops, message = FALSE, warning = FALSE}
+#Get lfcs for each population, aggregate lfcs per body part/sample using the mean
+common_sa <- subset(x = parsed_counts_all_ratios_common_genes,
+                  subset = population == "south_america")
+lfcs_sa <- aggregate(lfc_norm ~ gene, data = common_sa, mean)
+
+common_na <- subset(x = parsed_counts_all_ratios_common_genes,
+                  subset = population == "north_america")
+lfcs_na <- aggregate(lfc_norm ~ gene, data = common_na, mean)
+
+common_taiwan <- subset(x = parsed_counts_all_ratios_common_genes,
+                  subset = population == "taiwan")
+lfcs_taiwan <- aggregate(lfc_norm ~ gene, data = common_taiwan, mean)
+
+#Color code the significant genes of interest according to the lme
+colors_plot <- rep("black", length(unique(parsed_counts_all_ratios_common_genes$gene)))
+sig_genes_color <- lfcs_taiwan$gene %in% sig_genes_both_lme
+colors_plot[sig_genes_color] <- "red"
+
+#Get the average expression per gene
+gene_expr <- parsed_counts_all_ratios_common_genes
+gene_expr$expr <- gene_expr$littleb + gene_expr$bigB
+mean_expr_gene <- aggregate(expr ~ gene, data = gene_expr, median)
+
+pdf("results/na_sa_lfcs.pdf", width = 10, height = 7.9)
+plot(lfcs_na$lfc_norm, lfcs_sa$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr))
+abline(h = 0, col = "red")
+abline(v = 0, col = "red")
+dev.off()
+
+pdf("results/na_tai_lfcs.pdf", width = 10, height = 7.9)
+plot(lfcs_na$lfc_norm, lfcs_taiwan$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr))
+abline(h = 0, col = "red")
+abline(v = 0, col = "red")
+dev.off()
+
+pdf("results/sa_tai_lfcs.pdf", width = 10, height = 7.9)
+plot(lfcs_sa$lfc_norm, lfcs_taiwan$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr))
+abline(h = 0, col = "red")
+abline(v = 0, col = "red")
+dev.off()
+
+```
+Get the correlation of lfcs between genotype and social form comparisons in North America and Taiwan
+```{r ase_lfcs_correlations_pops, message = FALSE, warning = FALSE}
+#Load the results from DESeq2 for expression differences between social forms or genotypes
+load("input/2019-10-30_results_deseq2_queens_mor.RData")
+load("input/2019-12-02_results_deseq2_fontana.RData")
+
+res_taiwan_genot <- res_de_txi
+res_na_soc_form <- res_de_txi_q
+
+#Make sure both datasets have the same set of genes
+genes_genot <- rownames(res_taiwan_genot)
+genes_soc_form <- rownames(res_na_soc_form)
+if(!identical(genes_genot, genes_soc_form)){
+  stop("The two datasets do not have the same genes or they are not in the same order")
+}
+#Get a mean of means for each comparison
+means_both_datasets <- cbind(res_taiwan_genot$baseMean, res_na_soc_form$baseMean)
+means_both_datasets <- apply(means_both_datasets, 1, mean)
+
+#Get a list of genes which are significant in both comparisons
+genot_sig_genes <- rownames(res_taiwan_genot[which(res_taiwan_genot$padj < 0.05), ])
+soc_form_sig_genes <- rownames(res_na_soc_form[which(res_na_soc_form$padj < 0.05), ])
+
+#Genes present in both lists
+genes_sig_genot_soc_form <- soc_form_sig_genes[soc_form_sig_genes %in% genot_sig_genes]
+#172 genes present in both comparisons
+
+colors_soc_form_genot <- rep("black", nrow(res_taiwan_genot))
+colors_sig_soc_form_genot <- rownames(res_taiwan_genot) %in% genes_sig_genot_soc_form
+colors_soc_form_genot[colors_sig_soc_form_genot] <- "red"
+
+#Plot the LFCs for each comparison
+plot(res_taiwan_genot$log2FoldChange, res_na_soc_form$log2FoldChange,
+     col = colors_soc_form_genot, cex = log(means_both_datasets))
+abline(h = 0, col = "red")
+abline(v = 0, col = "red")
+
+
+```
+CONTINUE HERE!!!!!!!!!!!! -----------------------------------------------------------------------------
+```{r boxplot_ratios, message = FALSE, warning = FALSE}
+#Calculate median read counts per group (gene and body part)
+agg_medians <- aggregate(total_counts ~ gene + body_part, data = parsed_counts_all_ratios_common_genes, median)
+agg_medians <- agg_medians[order(agg_medians$gene, agg_medians$body_part), ]
+colnames(agg_medians) <- c("gene", "body_part", "medians")
+
+#Add medians to the main dataset
+parsed_counts_all_ratios_common_genes <- merge(agg_medians, parsed_counts_all_ratios_common_genes)
+
+#Get the order of all genes by position in the supergene
+#Load the annotation for the gnG assembly of the Solenopsis invicta reference genome.
+si_ann <- makeTxDbFromGFF(file = "input/GCF_000188075.1_Si_gnG_genomic.gff",
+                          format="gff3")
+
+#Generate a table with the gene names and its position in the reference
+gene_ids <- keys(si_ann, "GENEID")
+gene_positions <- AnnotationDbi::select(x = si_ann,
+                                        keys = gene_ids,
+                                        columns = c("GENEID","TXCHROM", "TXSTART", "TXEND"),
+                                        keytype = "GENEID")
+
+colnames(gene_positions) <- c("gene","contig", "start", "end")
+
+#Get only the minimum start position in the scaffolds for all the transcripts per gene
+gene_positions_min <- aggregate(x = gene_positions$start, by = list(gene_positions$contig, gene_positions$gene), FUN = min)
+names(gene_positions_min) <- c("contig", "gene", "start_position")
+
+#Select genes only in the analysis
+gene_positions_min <- gene_positions_min[gene_positions_min$gene %in% unique(parsed_counts_all_ratios_common_genes$gene), ]
+
+#Sort by start position per contig
+gene_positions_min <- gene_positions_min[order(gene_positions_min$contig, gene_positions_min$start_position), ]
+
+#Mark the genes with significant DE in the different populations and in both
+sig_genes_na <- rownames(results_north_america_subset[which(results_north_america_subset$padj < 0.05), ])
+
+sig_genes_sa <- rownames(results_south_america_subset[which(results_south_america_subset$padj < 0.05), ])
+
+parsed_counts_all_ratios_common_genes$gene <- as.character(parsed_counts_all_ratios_common_genes$gene)
+
+parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_both_lme] <- paste0(parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_both_lme], "*+")
+
+parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_na] <- paste0(parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_na], "*")
+
+parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_sa] <- paste0(parsed_counts_all_ratios_common_genes$gene[parsed_counts_all_ratios_common_genes$gene %in% sig_genes_sa], "+")
+
+#Mark in both datasets
+gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_both_lme] <- paste0(gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_both_lme], "*+")
+
+gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_na] <- paste0(gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_na], "*")
+
+gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_sa] <- paste0(gene_positions_min$gene[gene_positions_min$gene %in% sig_genes_sa], "+")
+
+#Sort the levels in the main dataframe
+parsed_counts_all_ratios_common_genes$gene <- factor(parsed_counts_all_ratios_common_genes$gene, 
+                                                     levels = gene_positions_min$gene)
+
+facet_labels <- c(QA = "South America\nQueen Abdomen", QH = "South America\nQueen Head", 
+                  QT = "South America\nQueen Thorax", W = "South America\nWorker Whole",
+                  whole_body_queen = "North America\nQueen Whole")
+ggplot(data = parsed_counts_all_ratios_common_genes, aes(x = gene, y = lfc)) + geom_boxplot(aes(fill = log(medians + 1)),
+                                                                                            outlier.size = 0.5) + 
+  scale_fill_gradient(name = "Logarithm of median\nread counts +1", low = hcl(15,100,75), high = hcl(195,100,75)) +
+  facet_grid(rows = vars(body_part), scales = "free", labeller = labeller(body_part = facet_labels)) +
+  geom_hline(yintercept = 0, color = "darkblue") + geom_hline(yintercept = -1, color = "darkblue", linetype = "dashed") + 
+  geom_hline(yintercept = 1, color = "darkblue", linetype = "dashed") + labs(y = "Log2 fold differences") + 
+  theme_bw() + theme(panel.grid.minor = element_blank()) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 10), axis.title.x = element_blank(),
+        axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_text(size = 14, face = "bold"),
+        strip.text.y= element_text(size = 12, angle = 45), legend.title = element_text(size=13, face="bold"),
+        legend.text = element_text(size=12))
+```
+
+Interesting patterns to note emerging from this graph:
+
+* (LOC105202834)<https://www.ncbi.nlm.nih.gov/gene/?term=LOC105202834> and (LOC105202818)<https://www.ncbi.nlm.nih.gov/gene/?term=LOC105202818> differences between SB and Sb are exactly the same in all SA samples. Both genes are annotated as "cytochrome P450 4C1" Presumably the reads here mapped to the same place. Is it duplicated in NA only (if not an artifact)?
+
+* (LOC105193134)<https://www.ncbi.nlm.nih.gov/gene/?term=LOC105193134> was picked up as significant with the Fisher combination method for p values, but the LFCs estimates looked all over the place. In this graph they are clearly above 0 in every comparison and almost always above 1 LFC (2 fold difference between SB and Sb).
+
+```{r save_boxplot, message = FALSE, warning = FALSE}
+
+p1 <- ggplot(data = parsed_counts_all_ratios_common_genes, aes(x = gene, y = lfc)) + geom_boxplot(aes(fill = log(medians + 1)),
+                                                                                                      outlier.size = 0.5) + 
+              scale_fill_gradient(name = "Logarithm of median\nread counts +1", low = hcl(15,100,75), high = hcl(195,100,75)) +
+              facet_grid(rows = vars(body_part), scales = "free", labeller = labeller(body_part = facet_labels)) +
+              geom_hline(yintercept = 0, color = "darkblue") + geom_hline(yintercept = -1, color = "darkblue", linetype = "dashed") + 
+              geom_hline(yintercept = 1, color = "darkblue", linetype = "dashed") + labs(y = "Log2 fold differences") +
+              theme_bw() + theme(panel.grid.minor = element_blank()) +
+              theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 10), axis.title.x = element_blank(),
+                    axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_text(size = 14, face = "bold"),
+                    strip.text.y= element_text(size = 12, angle = 45), legend.title = element_text(size=13, face="bold"),
+                    legend.text = element_text(size=12))
+
+ggsave(filename = "results/boxplot_lfcs_common.pdf", plot = p1, device = "pdf", height = 30, width = 60, units = "cm")
+```
+
+Same plot with North American populations only
+
+```{r boxplot_ratios_north_america, message = FALSE, warning = FALSE}
+#Calculate median read counts per group (gene and body part)
+agg_medians_north_america <- aggregate(total_counts ~ gene + body_part, data = parsed_counts_north_america_ratio, median)
+agg_medians_north_america <- agg_medians_north_america[order(agg_medians_north_america$gene, agg_medians_north_america$body_part), ]
+colnames(agg_medians_north_america) <- c("gene", "body_part", "medians")
+
+#Add medians to the main dataset
+parsed_counts_north_america_ratio <- merge(agg_medians_north_america, parsed_counts_north_america_ratio)
+
+#Get only the minimum start position in the scaffolds for all the transcripts per gene
+gene_positions_min_north_america <- aggregate(x = gene_positions$start, by = list(gene_positions$contig, gene_positions$gene), FUN = min)
+names(gene_positions_min_north_america) <- c("contig", "gene", "start_position")
+
+#Select genes only in the analysis
+gene_positions_min_north_america <- gene_positions_min_north_america[gene_positions_min_north_america$gene %in% unique(parsed_counts_north_america_ratio$gene), ]
+
+#Sort by start position per contig
+gene_positions_min_north_america <- gene_positions_min_north_america[order(gene_positions_min_north_america$contig, gene_positions_min_north_america$start_position), ]
+
+#Mark the genes with significant DE in the different populations and in both
+sig_genes_na_all <- rownames(results_north_america[which(results_north_america$padj < 0.05), ])
+gene_positions_min_north_america$gene[gene_positions_min_north_america$gene %in% sig_genes_na_all] <- paste0(gene_positions_min_north_america$gene[gene_positions_min_north_america$gene %in% sig_genes_na_all], "*")
+parsed_counts_north_america_ratio$gene <- as.character(parsed_counts_north_america_ratio$gene)
+parsed_counts_north_america_ratio$gene[parsed_counts_north_america_ratio$gene %in% sig_genes_na_all] <- paste0(parsed_counts_north_america_ratio$gene[parsed_counts_north_america_ratio$gene %in% sig_genes_na_all], "*")
+
+#Sort the levels in the main dataframe
+parsed_counts_north_america_ratio$gene <- factor(parsed_counts_north_america_ratio$gene, 
+                                                 levels = gene_positions_min_north_america$gene)
+
+p2 <- ggplot(data = parsed_counts_north_america_ratio, aes(x = gene, y = lfc)) + geom_boxplot(aes(fill = log(medians + 1)),
+                                                                                              outlier.size = 0.5) + 
+              scale_fill_gradient(name = "Logarithm of median\nread counts +1", low = hcl(15,100,75), high = hcl(195,100,75)) +
+              geom_hline(yintercept = 0, color = "darkblue") + geom_hline(yintercept = -1, color = "darkblue", linetype = "dashed") + 
+              geom_hline(yintercept = 1, color = "darkblue", linetype = "dashed") + labs(y = "Log2 fold differences") +
+              #geom_rect(aes(xmin = sig_genes_both[1], xmax = sig_genes_both[1], ymin = -8, ymax = 8),
+              #          fill = "transparent", color = "red", size = 1.5) + 
+              theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 5), axis.title.x = element_blank(),
+                    axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_text(size = 14, face = "bold"),
+                    strip.text.y= element_text(size = 12, angle = 45), legend.title = element_text(size=13, face="bold"),
+                    legend.text = element_text(size=12))
+
+p2
+#ggsave(filename = "results/boxplot_lfcs_north_america.png", plot = p2, device = "png", height = 60, width = 120, units = "cm")
+
+```
+
+Repeat boxplot in common with different format settings (width of the boxplot linked to significance)
+
+```{r boxplot_ratios_common_format2, message = FALSE, warning = FALSE}
+
+#Add a column specifying which genes are significant in which populations
+parsed_counts_all_ratios_common_genes$sig <- rep ("no", nrow(parsed_counts_all_ratios_common_genes))
+parsed_counts_all_ratios_common_genes[parsed_counts_all_ratios_common_genes$gene %in% paste0(sig_genes_sa, "+"), ]$sig <- "sa"
+parsed_counts_all_ratios_common_genes[parsed_counts_all_ratios_common_genes$gene %in% paste0(sig_genes_both_lme, "*+"), ]$sig <- "both"
+#Make sure that the label 'sa' only applies to genes in south american populations
+parsed_counts_all_ratios_common_genes[parsed_counts_all_ratios_common_genes$sig == "sa" &
+                                      parsed_counts_all_ratios_common_genes$population == "north_america", ]$sig <- "no"  
+
+#Generate x axis only with significant genes
+
+x_axis_genes <- rep("", length(levels(parsed_counts_all_ratios_common_genes$gene)))
+
+pos_sig_genes <- c(which(levels(parsed_counts_all_ratios_common_genes$gene) %in% paste0(sig_genes_both_lme, "*+")), 
+                   which(levels(parsed_counts_all_ratios_common_genes$gene) %in% paste0(sig_genes_sa, "+")))
+
+pos_sig_genes <- sort(pos_sig_genes)
+x_axis_genes_ids <- levels(parsed_counts_all_ratios_common_genes$gene)[pos_sig_genes]
+x_axis_genes[pos_sig_genes] <- x_axis_genes_ids
+x_axis_genes <- gsub(x = x_axis_genes, pattern = "[*+]", replacement = "")
+
+#Plot the thing
+p3 <- ggplot(data = parsed_counts_all_ratios_common_genes, aes(x = gene, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1.1), 
+                                                                                                                 fill = sig, color = sig), outlier.size = 0.5) +
+        scale_fill_manual(values=c(hcl(15,100,75), "#999999", hcl(195,100,75))) +
+        scale_color_manual(values=c(hcl(15,100,50), "grey40", hcl(195,100,50))) +
+        facet_grid(rows = vars(body_part), scales = "free", labeller = labeller(body_part = facet_labels)) +
+        geom_hline(yintercept = 0, color = "black") + geom_hline(yintercept = -1, color = "darkgrey", linetype = "dashed") + 
+        geom_hline(yintercept = 1, color = "darkgrey", linetype = "dashed") +  
+        theme_bw() + theme(panel.grid.minor = element_blank()) + scale_x_discrete(labels = x_axis_genes) +
+        scale_y_continuous(breaks = seq(-10, 10, 2), expand = expand_scale(mult = 0)) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 10), axis.title.x = element_blank(),
+              axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_blank(),
+              strip.text.y= element_text(size = 12, angle = 45), legend.position = "none",
+              panel.grid.major.x = element_blank())
+        
+
+#Save the plot
+ggsave(filename = "results/boxplot_lfcs_common_format2.pdf", plot = p3, device = "pdf", height = 210, width = 297, units = "mm")
+
+#Plot the south american data 3rd format, merged by tissue
+parsed_counts_ratios_south_america <- parsed_counts_all_ratios_common_genes[parsed_counts_all_ratios_common_genes$population == "south_america", ]
+#Clean gene names
+levels(parsed_counts_ratios_south_america$gene) <- gsub(pattern = "[*+]",
+                                                        replacement = "",
+                                                        levels(parsed_counts_ratios_south_america$gene))
+
+#Generate x axis only with significant genes
+x_axis_genes <- rep("", length(levels(parsed_counts_ratios_south_america$gene)))
+
+pos_sig_genes <- which(levels(parsed_counts_ratios_south_america$gene) %in% paste0(sig_genes_sa))
+
+pos_sig_genes <- sort(pos_sig_genes)
+x_axis_genes_ids <- levels(parsed_counts_ratios_south_america$gene)[pos_sig_genes]
+x_axis_genes[pos_sig_genes] <- x_axis_genes_ids
+parsed_counts_ratios_south_america$sig <- "no"
+parsed_counts_ratios_south_america$sig[parsed_counts_ratios_south_america$gene %in% sig_genes_sa] <- "sa"
+
+plot_format_3 <- ggplot(data = parsed_counts_ratios_south_america, aes(x = gene, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1.1), 
+                                                                                                                 fill = sig, color = sig), outlier.size = 0.5) +
+        scale_fill_manual(values=c("#999999", "darkolivegreen3")) +
+        scale_color_manual(values=c("grey40", "chartreuse3")) +
+        geom_hline(yintercept = 0, color = "black") + geom_hline(yintercept = -1, color = "darkgrey", linetype = "dashed") + 
+        geom_hline(yintercept = 1, color = "darkgrey", linetype = "dashed") +  
+        theme_bw() + theme(panel.grid.minor = element_blank()) + scale_x_discrete(labels = x_axis_genes) +
+        scale_y_continuous(breaks = seq(-10, 10, 2), expand = expand_scale(mult = 0)) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 10), axis.title.x = element_blank(),
+              axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_blank(),
+              strip.text.y= element_text(size = 12, angle = 45), legend.position = "none",
+              panel.grid.major.x = element_blank())
+        
+
+#Save the plot
+ggsave(filename = "results/boxplot_south_america_only.pdf", plot = plot_format_3, device = "pdf", height = 210, width = 297, units = "mm")
+
+```
+
+Run the same format for the Noth American only plot
+
+```{r boxplot_ratios_north_america_format2, message = FALSE, warning = FALSE}
+
+#Add a column specifying which genes are significant 
+parsed_counts_north_america_ratio$sig <- rep ("no", nrow(parsed_counts_north_america_ratio))
+parsed_counts_north_america_ratio[parsed_counts_north_america_ratio$gene %in% paste0(sig_genes_na_all, "*"), ]$sig <- "na"
+
+#Generate x axis only with significant genes
+x_axis_genes <- rep("", length(levels(parsed_counts_north_america_ratio$gene)))
+
+pos_sig_genes <- which(levels(parsed_counts_north_america_ratio$gene) %in% paste0(sig_genes_na_all, "*"))
+
+pos_sig_genes <- sort(pos_sig_genes)
+x_axis_genes_ids <- levels(parsed_counts_north_america_ratio$gene)[pos_sig_genes]
+x_axis_genes[pos_sig_genes] <- x_axis_genes_ids
+x_axis_genes <- gsub(x = x_axis_genes, pattern = "[*]", replacement = "")
+
+#Plot the thing
+p3 <- ggplot(data = parsed_counts_north_america_ratio, aes(x = gene, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1.1), 
+                                                                                                                 fill = sig, color = sig), outlier.size = 0.5) +
+        scale_fill_manual(values=c("darkolivegreen3", "#999999")) +
+        scale_color_manual(values=c("chartreuse3", "grey40")) +
+        geom_hline(yintercept = 0, color = "black") + geom_hline(yintercept = -1, color = "darkgrey", linetype = "dashed") + 
+        geom_hline(yintercept = 1, color = "darkgrey", linetype = "dashed") +  
+        theme_bw() + theme(panel.grid.minor = element_blank()) + scale_x_discrete(labels = x_axis_genes) +
+        scale_y_continuous(breaks = seq(-10, 10, 2), expand = expand_scale(mult = 0)) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 10), axis.title.x = element_blank(),
+              axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_blank(),
+              strip.text.y= element_text(size = 12, angle = 45), legend.position = "none",
+              panel.grid.major.x = element_blank())
+        
+
+#Save the plot
+ggsave(filename = "results/boxplot_lfcs_north_america_format2.pdf", plot = p3, device = "pdf", height = 210, width = 297, units = "mm")
+
+```
+
+
+Similar boxplot, but including only genes with significant differences
+
+```{r boxplot_ratios_common_format2_sig_only, message = FALSE, warning = FALSE}
+
+#Remove the + and * from the gene names, as they are no longer necessary
+parsed_counts_sig_ratios_common_genes <- parsed_counts_all_ratios_common_genes
+parsed_counts_sig_ratios_common_genes$gene <- gsub(pattern = "\\+|\\*",
+                                                   replacement = "",
+                                                   x = parsed_counts_all_ratios_common_genes$gene)
+
+#Select only significant genes for the genes in common between SA and NA
+sig_genes_plot <- unique(c(sig_genes_both_lme, sig_genes_sa))
+parsed_counts_sig_ratios_common_genes <- subset(x = parsed_counts_sig_ratios_common_genes, 
+                                                subset = parsed_counts_sig_ratios_common_genes$gene %in% sig_genes_plot)
+
+
+
+
+#Include non-significant genes in North American populations
+
+
+p4 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = gene, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1.1), 
+                                                                                                                 fill = sig, color = sig), outlier.size = 0.5) +
+        scale_fill_manual(values=c(hcl(15,100,75), "#999999", hcl(195,100,75))) +
+        scale_color_manual(values=c(hcl(15,100,50), "grey40", hcl(195,100,50))) +
+        facet_grid(rows = vars(body_part), labeller = labeller(body_part = facet_labels)) +
+        geom_hline(yintercept = 0, color = "black") + geom_hline(yintercept = -1, color = "darkgrey", linetype = "dashed") + 
+        geom_hline(yintercept = 1, color = "darkgrey", linetype = "dashed") +  
+        theme_bw() + theme(panel.grid.minor = element_blank()) +
+        scale_y_continuous(breaks = seq(-10, 10, 2), expand = expand_scale(mult = 0)) +
+        theme(axis.text.x = element_text(angle = 45, vjust = 0.5, size = 18), axis.title.x = element_blank(),
+              axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_blank(),
+              strip.text.y= element_text(size = 12, angle = 45), legend.position = "none")
+        
+
+#Save the plot
+ggsave(filename = "results/boxplot_lfcs_common_sig_only_format2.pdf", plot = p4, device = "pdf", height = 210, width = 297, units = "mm")
+
+```
+
+Boxplot with significant genes in both SA and NA, comparing lfcs per gene across populations/body parts
+
+```{r boxplot_ratios_common_sig_only_per_gene, message = FALSE, warning = FALSE}
+
+#Remove LOC from the gene IDs
+parsed_counts_sig_ratios_common_genes$gene <- gsub(pattern = "LOC",
+                                                   replacement = "",
+                                                   x = parsed_counts_sig_ratios_common_genes$gene)
+
+
+p5 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = body_part, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1.1), 
+                                                                                                                 fill = sig, color = sig), outlier.size = 0.5) +
+               scale_fill_manual(values=c(hcl(15,100,75), "#999999", hcl(195,100,75)),
+                          breaks = c("both", "sa", "no"), 
+                          labels = c("North and South\nAmerica", "South America\nonly", "No"),
+                          name = "Significant differences\nbetween variants") +
+        scale_color_manual(values=c(hcl(15,100,50), "grey40", hcl(195,100,50)),
+                          breaks = c("both", "sa", "no"), 
+                          labels = c("North and South\nAmerica", "South America\nonly", "No"),
+                          name = "Significant differences\nbetween variants") +
+        facet_grid(. ~ gene) +
+        geom_hline(yintercept = 0, color = "black") + geom_hline(yintercept = -1, color = "darkgrey", linetype = "dashed") + 
+        geom_hline(yintercept = 1, color = "darkgrey", linetype = "dashed") +  
+        theme_bw() + theme(panel.grid.minor = element_blank()) +
+        scale_y_continuous(breaks = seq(-10, 10, 2)) + #, expand = expand_scale(mult = 0)) +
+        scale_x_discrete(labels=c("QA" = "1", "QH" = "2", "QT" = "3", "W" = "4", "whole_body_queen" = "5")) + 
+        theme(axis.text.x = element_text(vjust = 0.5, size = 12), axis.title.x = element_blank(),
+              axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_blank(),
+              strip.text.x= element_text(size = 9), legend.title = element_text(size = 15),
+              legend.text = element_text(size = 12))
+        
+p6 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = body_part, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1.1), 
+                                                                                                                 fill = sig, color = sig), outlier.size = 0.5) +
+        scale_fill_manual(values=c(hcl(15,100,75), "#999999", hcl(195,100,75)),
+                          breaks = c("both", "sa", "no"), 
+                          labels = c("North and South\nAmerica", "South America\nonly", "No"),
+                          name = "Significant differences\nbetween variants") +
+        scale_color_manual(values=c(hcl(15,100,50), "grey40", hcl(195,100,50)),
+                          breaks = c("both", "sa", "no"), 
+                          labels = c("North and South\nAmerica", "South America\nonly", "No"),
+                          name = "Significant differences\nbetween variants") +
+        facet_grid(. ~ gene) +
+        geom_hline(yintercept = 0, color = "black") + geom_hline(yintercept = -1, color = "darkgrey", linetype = "dashed") + 
+        geom_hline(yintercept = 1, color = "darkgrey", linetype = "dashed") +  
+        theme_bw() + theme(panel.grid.minor = element_blank()) +
+        scale_y_continuous(breaks = seq(-10, 10, 2)) + #, expand = expand_scale(mult = 0)) +
+        scale_x_discrete(labels=c("QA" = "1", "QH" = "2", "QT" = "3", "W" = "4", "whole_body_queen" = "5")) + 
+        theme(axis.text.x = element_text(vjust = 0.5, size = 12), axis.title.x = element_blank(),
+              axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_blank(),
+              strip.text.x= element_text(size = 9), legend.position = "none")
+#Save the plot
+ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene.pdf", plot = p6, device = "pdf", height = 150, width = 297, units = "mm")
+ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_legend.pdf", plot = p5, device = "pdf", height = 150, width = 297, units = "mm")
+
+```
+
+Similar boxplot putting the focus on body parts
+
+```{r boxplot_ratios_common_sig_only_per_gene_body_part, message = FALSE, warning = FALSE}
+
+fill_colors <- c(rgb(152,78,163, maxColorValue = 255), rgb(55,126,184, maxColorValue = 255),
+                 rgb(77,175,74, maxColorValue = 255), rgb(228,26,28, maxColorValue = 255),
+                 rgb(255,127,0, maxColorValue = 255))
+contour_colors <- c(rgb(106, 55, 114, maxColorValue = 255), rgb(39, 88, 129, maxColorValue = 255),
+                 rgb(54, 122, 52, maxColorValue = 255), rgb(160,18,18, maxColorValue = 255),
+                 rgb(179,89,0, maxColorValue = 255))
+
+#Order body parts as follow: Worker, Queen head, Queen thorax, Queen Abdomen, North America queen
+body_part_factor <- factor(parsed_counts_sig_ratios_common_genes$body_part,
+                           levels = c("W", "QH", "QT", "QA", "whole_body_queen"))
+parsed_counts_sig_ratios_common_genes$body_part <- body_part_factor
+
+#Plots
+p7 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = body_part, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1.1), 
+                                                                                                       fill = body_part, color = body_part), outlier.size = 0.5) +
+        scale_fill_manual(values = fill_colors,
+                          labels = c("Whole worker\nSouth America", "Queen Head\nSouth America", "Queen Thorax\nSouth America", "Queen Abdomen\nSouth America", "Whole queen\nNorth America"),
+                          name = "Caste, body part\npopulation") +
+        scale_color_manual(values = contour_colors,
+                           labels = c("Whole worker\nSouth America", "Queen Head\nSouth America", "Queen Thorax\nSouth America", "Queen Abdomen\nSouth America", "Whole queen\nNorth America"),
+                           name = "Caste, body part\npopulation") +
+        facet_grid(. ~ gene) +
+        geom_hline(yintercept = 0, color = "black") + geom_hline(yintercept = -1, color = "darkgrey", linetype = "dashed") + 
+        geom_hline(yintercept = 1, color = "darkgrey", linetype = "dashed") +  
+        theme_bw() + theme(panel.grid.minor = element_blank()) +
+        scale_y_continuous(breaks = seq(-10, 10, 2)) +
+        theme(axis.text.x = element_blank(), axis.title.x = element_blank(), axis.ticks.x = element_blank(),
+              axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_blank(),
+              strip.text.x= element_text(size = 9), legend.title = element_text(size = 15),
+              legend.text = element_text(size = 12))
+        
+p8 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = body_part, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1.1), 
+                                                                                                       fill = body_part, color = body_part), outlier.size = 0.5) +
+        scale_fill_manual(values = fill_colors,
+                          labels = c("Queen Abdomen\nSouth America", "Queen Head\nSouth America", "Queen Thorax\nSouth America", "Whole worker\nSouth America", "Whole queen\nNorth America"),
+                          name = "Caste, body part\npopulation") +
+        scale_color_manual(values = contour_colors,
+                           labels = c("Queen Abdomen\nSouth America", "Queen Head\nSouth America", "Queen Thorax\nSouth America", "Whole worker\nSouth America", "Whole queen\nNorth America"),
+                           name = "Caste, body part\npopulation") +
+        facet_grid(. ~ gene) +
+        geom_hline(yintercept = 0, color = "black") + geom_hline(yintercept = -1, color = "darkgrey", linetype = "dashed") + 
+        geom_hline(yintercept = 1, color = "darkgrey", linetype = "dashed") +  
+        theme_bw() + theme(panel.grid.minor = element_blank()) +
+        scale_y_continuous(breaks = seq(-10, 10, 2)) +
+        theme(axis.text.x = element_blank(), axis.title.x = element_blank(), axis.ticks.x = element_blank(),
+              axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_blank(),
+              strip.text.x= element_text(size = 9), legend.position = "none")
+#Save the plot
+ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_body_part.pdf", plot = p8, device = "pdf", height = 150, width = 297, units = "mm")
+ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_legend_body_part.pdf", plot = p7, device = "pdf", height = 150, width = 297, units = "mm")
+```
+
+## Euler diagram for the different lists of significant genes
+
+```{r euler_diagram}
+euler_sig_genes <- euler(combinations = list("South America only" = sig_genes_sa,
+                                    "North America only" = sig_genes_na_all,
+                                    "Combined analysis" = sig_genes_both_lme))
+
+#Generate plot
+euler_sig_genes_plot <- plot(euler_sig_genes, quantities = TRUE, edges = TRUE, labels = list(fontsize = 8))
+## Save:
+ggsave(plot = euler_sig_genes_plot, filename = "results/euler_plot.pdf", width = 20, height = 20, units = "cm")
+```
+
+
