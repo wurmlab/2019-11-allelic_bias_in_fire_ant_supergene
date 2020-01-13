@@ -352,7 +352,39 @@ sig_genes_both_lme <- rownames(sig_genes_both_lme)
 sig_genes_both_lme <- sig_genes_both_lme[!grepl(pattern = ":population", x = sig_genes_both_lme)]
 #Clean the names
 sig_genes_both_lme <- gsub(pattern = "gene", replacement = "", x = sig_genes_both_lme)
-  
+
+#Compare different models, to check whether there is a joint NA/Taiwan effect
+#Add a native/invasie factor
+for_model$ancestry <- ifelse(for_model$population == "south_america", "native", "invasive")
+for_model$continent <- ifelse(for_model$population == "taiwan", "taiwan", "america")
+
+#Run the model with the new factors
+lme_ancestry <- lmer(lfc_norm ~ 0 + gene * ancestry + gene * continent  + (1|body_part:gene),
+                        data = for_model, weights = weights)
+
+ancestry_aov <- anova(lme_ancestry)
+#The gene:ancestry interaction is significant and larger than the gene:continent one. E
+#Now look at the list of siginificant genes between NA and Taiwan only
+for_model_invasive <- subset(for_model, subset = ancestry == "invasive")
+
+lme_invasive <- lmer(lfc_norm ~ 0 + gene + (1|population:gene),
+                     data = for_model_invasive,
+                     weights = weights)
+
+# extract coefficients
+coefs_inv <- data.frame(coef(summary(lme_invasive)))
+#Adjust p values
+coefs_inv$padj <- p.adjust(coefs_inv$Pr...t.., method = "BH")
+#Significant genes (only those with main gene effects are considered)
+sig_genes_inv_lme <- coefs_inv[coefs_inv$padj < 0.05, ]
+
+#Get the names of the significant genes from the model (main effects only)
+sig_genes_inv_lme <- rownames(sig_genes_inv_lme)
+#Get main effects only
+sig_genes_inv_lme <- sig_genes_inv_lme[!grepl(pattern = ":population", x = sig_genes_inv_lme)]
+#Clean the names
+sig_genes_inv_lme <- gsub(pattern = "gene", replacement = "", x = sig_genes_inv_lme)
+
 ```
 
 Get the correlation of lfcs between SB and Sb in different populations (Mark the significant genes of interest)
