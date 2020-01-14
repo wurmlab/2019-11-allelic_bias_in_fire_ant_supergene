@@ -420,22 +420,34 @@ gene_expr$expr <- gene_expr$littleb + gene_expr$bigB
 mean_expr_gene <- aggregate(expr ~ gene, data = gene_expr, median)
 
 #pdf("results/na_sa_lfcs.pdf", width = 10, height = 7.9)
-plot(lfcs_na$lfc_norm, lfcs_sa$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr))
+jpeg("results/na_sa_lfcs.jpg", width = 10, height = 7.9,
+     res = 300, units = "in")
+par(mgp = c(2.2, 0.5, 0))
+plot(lfcs_na$lfc_norm, lfcs_sa$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr),
+     xlab = "SB/Sb log2 expression ratios\nNorth America", ylab = "SB/Sb log2 expression ratios\nSouth America")
 abline(h = 0, col = "red")
 abline(v = 0, col = "red")
-#dev.off()
+dev.off()
 
 #pdf("results/na_tai_lfcs.pdf", width = 10, height = 7.9)
-plot(lfcs_na$lfc_norm, lfcs_taiwan$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr))
+jpeg("results/na_tai_lfcs.jpg", width = 10, height = 7.9,
+     res = 300, units = "in")
+par(mgp = c(2.2, 0.5, 0))
+plot(lfcs_na$lfc_norm, lfcs_taiwan$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr),
+     xlab = "SB/Sb log2 expression ratios\nNorth America", ylab = "SB/Sb log2 expression ratios\nTaiwan")
 abline(h = 0, col = "red")
 abline(v = 0, col = "red")
-#dev.off()
+dev.off()
 
 #pdf("results/sa_tai_lfcs.pdf", width = 10, height = 7.9)
-plot(lfcs_sa$lfc_norm, lfcs_taiwan$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr))
+jpeg("results/sa_tai_lfcs.jpg", width = 10, height = 7.9,
+     res = 300, units = "in")
+par(mgp = c(2.2, 0.5, 0))  
+plot(lfcs_sa$lfc_norm, lfcs_taiwan$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr),
+     xlab = "SB/Sb log2 expression ratios\nSouth America", ylab = "SB/Sb log2 expression ratios\nTaiwan")
 abline(h = 0, col = "red")
 abline(v = 0, col = "red")
-#dev.off()
+dev.off()
 
 ```
 Get the correlation of lfcs between genotype and social form comparisons in North America and Taiwan
@@ -472,6 +484,8 @@ colors_soc_form_genot[colors_sig_soc_form_genot] <- "red"
 #Plot the LFCs for each comparison
 
 pdf("results/genotype_social_form_corr.pdf", width = 10, height = 7.9)
+jpeg("results/genotype_social_form_corr.jpg", width = 10, height = 7.9,
+     res = 300, units = "in")
 plot(res_taiwan_genot$log2FoldChange, res_na_soc_form$log2FoldChange,
      col = colors_soc_form_genot, cex = log(means_both_datasets))
 abline(h = 0, col = "red")
