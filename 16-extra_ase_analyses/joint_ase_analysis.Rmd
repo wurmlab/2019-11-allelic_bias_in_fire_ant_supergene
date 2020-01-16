@@ -20,6 +20,7 @@ library(plyr)
 library(lmerTest)
 library(quantreg)
 library(eulerr)
+library(wCorr)
 version
 
 for (package in (.packages()) ) {
@@ -419,32 +420,42 @@ gene_expr <- parsed_counts_all_ratios_common_genes
 gene_expr$expr <- gene_expr$littleb + gene_expr$bigB
 mean_expr_gene <- aggregate(expr ~ gene, data = gene_expr, median)
 
+#Calculate correlation weighted by expression level of each gene
+na_sa_corr <- weightedCorr(lfcs_na$lfc_norm, lfcs_sa$lfc_norm, weights = log(mean_expr_gene$expr),
+                           method = "spearman")
 #pdf("results/na_sa_lfcs.pdf", width = 10, height = 7.9)
 jpeg("results/na_sa_lfcs.jpg", width = 10, height = 7.9,
      res = 300, units = "in")
-par(mgp = c(2.2, 0.5, 0))
+par(mgp = c(2.2, 0.5, 0), cex = 2)
 plot(lfcs_na$lfc_norm, lfcs_sa$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr),
-     xlab = "SB/Sb log2 expression ratios\nNorth America", ylab = "SB/Sb log2 expression ratios\nSouth America")
+     xlab = "SB/Sb log2 expression ratios\nNorth America", ylab = "SB/Sb log2 expression ratios\nSouth America",
+     main = paste("r² =", round(na_sa_corr, digits = 2)))
 abline(h = 0, col = "red")
 abline(v = 0, col = "red")
 dev.off()
 
+na_tai_corr <- weightedCorr(lfcs_na$lfc_norm, lfcs_taiwan$lfc_norm, weights = log(mean_expr_gene$expr),
+                            method = "spearman")
 #pdf("results/na_tai_lfcs.pdf", width = 10, height = 7.9)
 jpeg("results/na_tai_lfcs.jpg", width = 10, height = 7.9,
      res = 300, units = "in")
-par(mgp = c(2.2, 0.5, 0))
+par(mgp = c(2.2, 0.5, 0), cex = 2)
 plot(lfcs_na$lfc_norm, lfcs_taiwan$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr),
-     xlab = "SB/Sb log2 expression ratios\nNorth America", ylab = "SB/Sb log2 expression ratios\nTaiwan")
+     xlab = "SB/Sb log2 expression ratios\nNorth America", ylab = "SB/Sb log2 expression ratios\nTaiwan",
+     main = paste("r² =", round(na_tai_corr, digits = 2)))
 abline(h = 0, col = "red")
 abline(v = 0, col = "red")
 dev.off()
 
+sa_tai_corr <- weightedCorr(lfcs_sa$lfc_norm, lfcs_taiwan$lfc_norm, weights = log(mean_expr_gene$expr),
+                            method = "spearman")
 #pdf("results/sa_tai_lfcs.pdf", width = 10, height = 7.9)
 jpeg("results/sa_tai_lfcs.jpg", width = 10, height = 7.9,
      res = 300, units = "in")
-par(mgp = c(2.2, 0.5, 0))  
+par(mgp = c(2.2, 0.5, 0), cex = 2)  
 plot(lfcs_sa$lfc_norm, lfcs_taiwan$lfc_norm, col = colors_plot, cex = log(mean_expr_gene$expr),
-     xlab = "SB/Sb log2 expression ratios\nSouth America", ylab = "SB/Sb log2 expression ratios\nTaiwan")
+     xlab = "SB/Sb log2 expression ratios\nSouth America", ylab = "SB/Sb log2 expression ratios\nTaiwan",
+     main = paste("r² =", round(sa_tai_corr, digits = 2)))
 abline(h = 0, col = "red")
 abline(v = 0, col = "red")
 dev.off()
