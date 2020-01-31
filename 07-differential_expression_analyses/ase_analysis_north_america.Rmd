@@ -16,6 +16,7 @@ library(DESeq2)
 library(GenomicRanges)
 library(GenomicFeatures)
 library(ggplot2)
+library(eulerr)
 
 version
 
@@ -641,5 +642,27 @@ colnames(specific_genes_parsed) <- c("counts", "genes", "samples", "variant")
 
 ggplot(data = specific_genes_parsed, aes(x = variant, y = counts)) + geom_violin() + facet_grid(. ~ genes) +
   geom_jitter(shape=16, position=position_jitter(0.2))
-
 ```
+
+## Generate Euler plot with the different types of significance within the supergene
+
+```{r euler_diagram}
+#Get a list of all genes
+all_genes_euler <- as.character(lfcs_joint_nona$gene)
+both_genes_euler <- as.character(lfcs_joint_sig_both$gene)
+soc_genes_euler <- c(both_genes_euler, as.character(lfcs_joint_sig_soc$gene))
+ase_genes_euler <- c(both_genes_euler, as.character(lfcs_joint_sig_ase$gene))
+
+
+euler_ase_soc_genes <- euler(combinations = list("All genes" = all_genes_euler,
+                                    "Differentially expressed\nbetween social forms" = soc_genes_euler,
+                                    "Differentially expressed\nbetween variants" = ase_genes_euler))
+
+#Generate plot
+euler_ase_soc_genes_plot <- plot(euler_ase_soc_genes, quantities = TRUE, edges = TRUE, labels = list(fontsize = 8))
+## Save:
+ggsave(plot = euler_ase_soc_genes_plot, filename = "results/euler_plot_ase_soc.pdf",
+       width = 20, height = 20, units = "cm")
+```
+
+

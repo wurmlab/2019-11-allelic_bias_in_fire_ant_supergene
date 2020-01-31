@@ -956,7 +956,7 @@ p7 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = body_part, y 
               strip.text.x= element_text(size = 9), legend.title = element_text(size = 15),
               legend.text = element_text(size = 12))
         
-p8 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = body_part, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1.1), 
+p8 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = body_part, y = lfc)) + geom_boxplot(varwidth = TRUE, aes(weight = log(medians + 1), 
                                                                                                        fill = body_part, color = body_part), outlier.size = 0.5) +
         scale_fill_manual(values = fill_colors,
                           labels = c("Queen Abdomen\nSouth America", "Queen Head\nSouth America", "Queen Thorax\nSouth America", "Whole worker\nSouth America", "Whole queen\nNorth America", "Whole queen\nTaiwan"),
