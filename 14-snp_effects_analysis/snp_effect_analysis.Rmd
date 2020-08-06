@@ -13,7 +13,10 @@ knitr::opts_chunk$set(echo = TRUE, fig.path = 'results/')
 library(Biobase)
 library(ggplot2)
 library(gridExtra)
-
+library(DESeq2)
+library(readxl)
+library(biomaRt)
+library(GenomicFeatures)
 
 for (package in (.packages()) ) { 
  print(paste("Package", package, "version", package.version(package)))
@@ -122,8 +125,8 @@ plot_position_candidates <- ggplot(data = snp_effect_candidates_position_parsed,
                                         legend.text = element_text(size = 15))
 
 grid.arrange(plot_impact_candidates, plot_position_candidates)
-ggsave("results/snp_eff_candidate_genes_position.pdf", plot_position_candidates, width = 30, height = 25, units = "cm")
-ggsave("results/snp_eff_candidate_genes_impact.pdf", plot_impact_candidates, width = 30, height = 25, units = "cm")
+# ggsave("results/snp_eff_candidate_genes_position.pdf", plot_position_candidates, width = 30, height = 25, units = "cm")
+# ggsave("results/snp_eff_candidate_genes_impact.pdf", plot_impact_candidates, width = 30, height = 25, units = "cm")
 ``` 
 
 ## SNP effect in SB genes compared to the rest of genes
@@ -195,7 +198,7 @@ Perform statistical analyses to find out whether genes with SB bias have more SN
 #Perform a glm on the total number of SNPs, comparing SB biased genes with the rest of the genes
 glm_total_nb <- glm(total_snps ~ gene_type, data = plot_snps_per_gene, family = "poisson")
 summary(glm_total_nb)
-#Non-significant, but non-SB genes appear to have MORE SNPs
+#Significant, SB genes appear to have MORE SNPs
 
 #Perform similar glms, looking at impact and position
 #Impact
@@ -223,10 +226,417 @@ chisq.test(to_test_contingency)
 fisher.test(to_test_contingency)
 #Non-significant
 ```
+## SNP effect on general Sb expression
+
+According to Ma et al. (2020)<https://doi.org/10.1093/gbe/evaa028>, genes with more non-synonymous mutations should have lower patterns of expression due to degeneration.
+Test this with Sb genes, check whether there is a correlation between number of non-synonymous mutations and low Sb expression. Remove genes with social bias as a proxy for genes selected for by antagonistic selection.
+
+Load list of genes of interest (remove genes with social bias). The table used here was generated in '../2018-12-10-ase_analysis/ase_analysis_north_america.Rmd'.
+```{r snp_eff_lfcs, include = FALSE}
+#Load table with the joint LFCs
+load('input/lfcs_joint.RData')
+
+#Load allelic bias data from North America
+load('input/dds_Sb_vs_SB_north_america.RData')
+#Get results
+na_ase <- data.frame(results(dds_Bb_DE), stringsAsFactors = FALSE)
+#Keep only mean expression and gene ID
+na_mean_expr <- data.frame(gene = rownames(na_ase), mean_expression_ase = na_ase$baseMean)
+#Add average expression to joint allelic bias data frame
+lfcs_joint_nona <- merge(lfcs_joint_nona, na_mean_expr)
+
+#Select the genes of interest (genes with social bias)
+soc_bias <- as.vector(lfcs_joint_nona$gene[(lfcs_joint_nona$padj_mor < 0.05)])
+
+#Select genes with average read count > 1 and LFC !=0
+filtered <- as.vector(lfcs_joint_nona$gene[lfcs_joint_nona$mean_expression_ase <= 1 | lfcs_joint_nona$lfcs_ase == 0])
+
+#Tag genes with meane expression below 1 read count or LFC = 0
+snp_effect$read_filter <- ifelse(snp_effect$GeneId %in% filtered, TRUE, FALSE)
+
+#Add a avariable to distinguish whether the gene is socially biased
+snp_effect$soc_bias <- ifelse(snp_effect$GeneId %in% soc_bias, TRUE, FALSE)
+
+#Keep only genes that pass the filter
+snp_effect_no_soc_bias <- snp_effect[!snp_effect$read_filter,]
+#Keep only genes without social bias
+snp_effect_no_soc_bias <- snp_effect_no_soc_bias[!snp_effect_no_soc_bias$soc_bias,]
+#Parse the dataset to make it analysable and plotable with ggplot2, keep only variants that are non-synonymous: missense, stop gain, stop loss
+snp_effect_nonsyn_raw <- data.frame(gene = snp_effect_no_soc_bias$GeneName, missense_muts = snp_effect_no_soc_bias$effect_missense_variant,
+                                stop_gain_id = snp_effect_no_soc_bias$effect_stop_gained, stop_loss_id = snp_effect_no_soc_bias$effect_stop_lost,
+                                stringsAsFactors = FALSE)
+
+#Sum together all missense muts
+snp_effect_nonsyn_raw$all_nonsyn_muts <- rowSums(snp_effect_nonsyn_raw[, c(2:4)])
+#Keep genes that have at least one non-synonymous SNP
+snp_effect_nonsyn <- snp_effect_nonsyn_raw[snp_effect_nonsyn_raw$all_nonsyn_muts!=0, ]
+
+#Compare the LFCs of genes with non-synonymous mutatations with that of genes with synonymous muts
+lfcs_joint_nona$nonsyn_mut <- ifelse(lfcs_joint_nona$gene %in% snp_effect_nonsyn$gene, "nonsyn_mut", "no_mut")
+
+#Remove genes that did not pass the filter and those with social bias
+lfcs_joint_filter <- lfcs_joint_nona[!lfcs_joint_nona$gene %in% filtered, ]
+lfcs_joint_filter <- lfcs_joint_filter[!lfcs_joint_filter$gene %in% soc_bias, ]
+
+#Plot the thing
+ggplot(data = lfcs_joint_filter, aes(y = lfcs_ase, x = nonsyn_mut)) + geom_boxplot()
+
+#Test
+wilcox.test(lfcs_joint_filter$lfcs_ase[lfcs_joint_filter$nonsyn_mut == "nonsyn_mut"],
+            lfcs_joint_filter$lfcs_ase[lfcs_joint_filter$nonsyn_mut == "no_mut"])
+#Marginally significant
+#Try with a linear model, wheigting by log mean expression
+lm_nonsyn_muts <- lm(data = lfcs_joint_filter, lfcs_ase ~ nonsyn_mut, weights = log(mean_expression_ase))
+summary(lm_nonsyn_muts)
+#Not significant
+
+#Plot LFCs against number of non-synonymous mutations
+lfcs_joint_nonsyn <- merge(lfcs_joint_filter, snp_effect_nonsyn_raw)
+
+#Add number of nonsynonymous mutations as a factor
+lfcs_joint_nonsyn$all_nonsyn_muts <- factor(lfcs_joint_nonsyn$all_nonsyn_muts,
+                                            levels = sort(unique(lfcs_joint_nonsyn$all_nonsyn_muts)))
+ggplot(aes(y = lfcs_ase, x = all_nonsyn_muts), data = lfcs_joint_nonsyn) + geom_boxplot() + geom_jitter()
+
+#Put the whole thing into a linear mode, weight by expression, but treat number of non-synonymous muts as a continuous variable
+lfcs_joint_nonsyn$all_nonsyn_muts <- as.numeric(as.character(lfcs_joint_nonsyn$all_nonsyn_muts))
+lm_nonsyn_muts_nb <- lm(data = lfcs_joint_nonsyn, lfcs_ase ~ all_nonsyn_muts, weights = log(mean_expression_ase))
+summary(lm_nonsyn_muts_nb)
+#Not significant
 
 
+#Try a similar analysis, but using the snpEFF predicted impacts instead of location of the SNP, only high and moderate impact
+snp_effect_impact <- data.frame(gene_id = snp_effect_no_soc_bias$GeneName, hi_muts = snp_effect_no_soc_bias$impact_HIGH,
+                                med_muts = snp_effect_no_soc_bias$impact_MODERATE,
+                                stringsAsFactors = FALSE)
+#Keep genes that have at least one non-low impact SNP
+snp_effect_impact <- snp_effect_impact[rowSums(snp_effect_impact[, c(2:3)])!=0, ]
+#Sum together all missense muts
+snp_effect_impact$all_impact_muts <- rowSums(snp_effect_impact[, c(2:3)])
+
+#Compare the LFCs of genes with non-synonymous mutatations with that of genes with synonymous muts
+lfcs_joint_nona$impact_mut <- ifelse(lfcs_joint_nona$gene %in% snp_effect_impact$gene_id, "impact_mut", "lo_mut")
+
+#Plot the thing
+ggplot(data = lfcs_joint_nona, aes(y = lfcs_ase, x = impact_mut)) + geom_boxplot()
+
+#Test
+wilcox.test(lfcs_joint_nona$lfcs_ase[lfcs_joint_nona$impact_mut == "impact_mut"],
+            lfcs_joint_nona$lfcs_ase[lfcs_joint_nona$impact_mut == "lo_mut"])
+
+#Exact same result as before.
+```
+
+Run the same analysis, but this time ran on raw expression counts for each allele, rather than LFCs.
+
+```{r snp_eff_expression, include = FALSE}
+#Obtain the allele-specific counts from North American populations
+raw_allele_counts_na <- counts(dds_Bb_DE)
+#Parse the dataset to make it analysable
+raw_allele_counts_na_df <- data.frame(gene = rep(rownames(raw_allele_counts_na), ncol(raw_allele_counts_na)),
+                                      read_counts = c(raw_allele_counts_na),
+                                      sample = rep(colnames(raw_allele_counts_na), each = nrow(raw_allele_counts_na)))
+
+#Add allele information
+raw_allele_counts_na_df$allele <- gsub(pattern = ".+_",
+                                       replacement = "",
+                                       x = raw_allele_counts_na_df$sample)
+#Add information on non-synonymous mutations (genes with social bias and low expression have already been removed)
+raw_allele_counts_na_df <- merge(raw_allele_counts_na_df, snp_effect_nonsyn_raw)
+#Transform number of non-synonymous mutations into factor
+raw_allele_counts_na_df$all_nonsyn_muts <- factor(raw_allele_counts_na_df$all_nonsyn_muts,
+                                                  levels = sort(unique(raw_allele_counts_na_df$all_nonsyn_muts)))
+
+#Plot expression level in each allele by number of non-synonymous mutations
+ggplot(data = raw_allele_counts_na_df, aes(x = all_nonsyn_muts, y = read_counts, fill = allele)) +  geom_boxplot()
+
+#Plot the median expression instead of all samples at once
+raw_allele_counts_na_agg <- aggregate(read_counts ~ gene + sample + allele + all_nonsyn_muts, raw_allele_counts_na_df, median)
+
+ggplot(data = raw_allele_counts_na_agg, aes(x = all_nonsyn_muts, y = read_counts, color = allele)) + geom_boxplot() +
+      geom_jitter()
+
+#Make a model
+raw_allele_counts_na_df$all_nonsyn_muts <- as.numeric(as.character(raw_allele_counts_na_df$all_nonsyn_muts))
+lm_nonsyn_muts_expr <- lm(data = raw_allele_counts_na_df, read_counts ~ allele*all_nonsyn_muts)
+summary(lm_nonsyn_muts_expr)
+#No significance
+```
 
 
+```{r snp_eff_expression_all_data, include = FALSE}
+#Get a new snpEFF data frame with all SNPs, without filtering by social form
+#Parse the dataset to make it analysable and plotable with ggplot2, keep only variants that are non-synonymous: missense, stop gain, stop loss
+snp_effect_nonsyn_all <- data.frame(gene = snp_effect$GeneName, missense_muts = snp_effect$effect_missense_variant,
+                                    stop_gain_id = snp_effect$effect_stop_gained, stop_loss_id = snp_effect$effect_stop_lost,
+                                    stringsAsFactors = FALSE)
+
+#Sum together all missense muts
+snp_effect_nonsyn_all$all_nonsyn_muts <- rowSums(snp_effect_nonsyn_all[, c(2:4)])
+
+#Load the data from South America
+#Load allelic bias data from North America
+load('input/dds_Sb_vs_SB_south_america.RData')
+#Obtain the allele-specific counts from South American populations
+raw_allele_counts_sa <- counts(dds_deg_ar)
+#Parse the dataset to make it analysable
+raw_allele_counts_sa_df <- data.frame(gene = rep(rownames(raw_allele_counts_sa), ncol(raw_allele_counts_sa)),
+                                      read_counts = c(raw_allele_counts_sa),
+                                      sample = rep(colnames(raw_allele_counts_sa), each = nrow(raw_allele_counts_sa)))
+#Add allele information
+raw_allele_counts_sa_df$allele <- gsub(pattern = ".+_",
+                                       replacement = "",
+                                       x = raw_allele_counts_sa_df$sample)
+#Add population information
+raw_allele_counts_sa_df$population <- "south_america"
+
+#Add counts normalised by library size
+raw_allele_counts_sa_df$normalised_counts <- raw_allele_counts_sa_df$read_counts/(sum(raw_allele_counts_sa_df$read_counts))
+
+#Load the data from Taiwan
+load('input/dds_Sb_vs_SB_fontana.RData')
+
+#Obtain the allele-specific counts from Taiwanese populations
+raw_allele_counts_tai <- counts(dds_Bb_DE_taiwan)
+#Parse the dataset to make it analysable
+raw_allele_counts_tai_df <- data.frame(gene = rep(rownames(raw_allele_counts_tai), ncol(raw_allele_counts_tai)),
+                                      read_counts = c(raw_allele_counts_tai),
+                                      sample = rep(colnames(raw_allele_counts_tai), each = nrow(raw_allele_counts_tai)))
+
+#Add allele information
+raw_allele_counts_tai_df$allele <- gsub(pattern = ".+_",
+                                       replacement = "",
+                                       x = raw_allele_counts_tai_df$sample)
+#Add population information
+raw_allele_counts_tai_df$population <- "taiwan"
+
+#Add counts normalised by library size
+raw_allele_counts_tai_df$normalised_counts <- raw_allele_counts_tai_df$read_counts/(sum(raw_allele_counts_tai_df$read_counts))
+
+#Finally, get the North American data
+raw_allele_counts_na_df <- raw_allele_counts_na_df[, c("gene", "read_counts", "sample", "allele")]
+
+#Add population information
+raw_allele_counts_na_df$population <- "north_america"
+
+#Add counts normalised by library size
+raw_allele_counts_na_df$normalised_counts <- raw_allele_counts_na_df$read_counts/(sum(raw_allele_counts_na_df$read_counts))
+
+#Merge all the count info together
+raw_allele_counts_all <- rbind(raw_allele_counts_na_df, raw_allele_counts_sa_df, raw_allele_counts_tai_df)
+
+#Get the median per gene per sample
+allele_counts_all <- aggregate(normalised_counts ~ gene + allele + population, data = raw_allele_counts_all, median)
+
+#Add raw counts too
+allele_counts_all$read_counts <- aggregate(read_counts ~ gene + allele + population, data = raw_allele_counts_all, median)$read_counts
+
+#Remove genes in any population with a median <= 1 read counts
+#allele_counts_all <- allele_counts_all[allele_counts_all$read_counts <= 1, ]
+
+#Add non-synonymous mutations information
+allele_counts_all_nonsyn <- merge(allele_counts_all, snp_effect_nonsyn_all)
+
+#Make nb of non-syn mutations a factor
+allele_counts_all_nonsyn$all_nonsyn_muts <- factor(allele_counts_all_nonsyn$all_nonsyn_muts,
+                                                   levels = sort(unique(allele_counts_all_nonsyn$all_nonsyn_muts)))
+#Plot the thing, by population first
+ggplot(data = allele_counts_all_nonsyn, aes(x = all_nonsyn_muts, y = log(normalised_counts), color = allele)) + geom_boxplot() +
+      geom_jitter() + facet_grid(population ~ .)
+
+#Plot all together
+ggplot(data = allele_counts_all_nonsyn, aes(x = all_nonsyn_muts, y = log(normalised_counts), color = allele)) + geom_boxplot() +
+      geom_jitter()
+
+#Get it into a model
+#Make a model
+allele_counts_all_nonsyn$all_nonsyn_muts <- as.numeric(as.character(allele_counts_all_nonsyn$all_nonsyn_muts))
+lm_nonsyn_muts_expr_all <- glm(data = allele_counts_all_nonsyn, log(read_counts+1) ~ population + allele*all_nonsyn_muts,
+                               family = "quasipoisson")
+summary(lm_nonsyn_muts_expr_all)
+
+#Use only binary info for non-syn muts
+allele_counts_all_nonsyn$non_syn_mut <- allele_counts_all_nonsyn$all_nonsyn_muts > 0
+
+#Get the model
+lm_nonsyn_muts_expr_bin <- glm(data = allele_counts_all_nonsyn, log(read_counts+1) ~ population + gene + allele*non_syn_mut,
+                               family = "quasipoisson")
+summary(lm_nonsyn_muts_expr_bin)
+
+#Plot
+ggplot(data = allele_counts_all_nonsyn, aes(x = non_syn_mut, y = log(normalised_counts), color = allele)) + geom_boxplot() +
+      geom_jitter() + facet_grid(population ~ .)
+
+ggplot(data = allele_counts_all_nonsyn, aes(x = non_syn_mut, y = log(normalised_counts), color = allele)) + geom_boxplot() +
+      geom_jitter()
+
+wilcox.test(allele_counts_all_nonsyn$normalised_counts[allele_counts_all_nonsyn$non_syn_mut & allele_counts_all_nonsyn$allele == "B"],
+            allele_counts_all_nonsyn$normalised_counts[allele_counts_all_nonsyn$non_syn_mut & allele_counts_all_nonsyn$allele == "b"])
+
+wilcox.test(allele_counts_all_nonsyn$normalised_counts[!allele_counts_all_nonsyn$non_syn_mut & allele_counts_all_nonsyn$allele == "B"],
+            allele_counts_all_nonsyn$normalised_counts[!allele_counts_all_nonsyn$non_syn_mut & allele_counts_all_nonsyn$allele == "b"])
+```
+
+Run a similar analysis but using SB to Sb proportions instead of raw or normalised counts
+
+```{r snp_eff_expression_ratios, include = FALSE}
+#Sort the raw count data by allele, gene, sample and population, in that order
+raw_allele_counts_sorted <- raw_allele_counts_all[order(raw_allele_counts_all$allele, raw_allele_counts_all$gene, raw_allele_counts_all$sample,
+                                                        raw_allele_counts_all$population), ]
+
+#Generate a new data frame with the raw counts per allele, total counts and LFCs
+raw_allele_counts_ratio_raw <- raw_allele_counts_sorted[raw_allele_counts_sorted$allele == "b", ]
+raw_allele_counts_ratio_raw$allele <- NULL
+raw_allele_counts_ratio_raw$normalised_counts <- NULL
+colnames(raw_allele_counts_ratio_raw)[2] <- "reads_b"
+raw_allele_counts_ratio_raw$reads_B <- raw_allele_counts_sorted$read_counts[raw_allele_counts_sorted$allele == "B"]
+#Remove allele information from the sample names
+raw_allele_counts_ratio_raw$sample <- gsub(pattern = "_[Bb]",
+                                           replacement = "",
+                                           x = raw_allele_counts_ratio_raw$sample)
+
+raw_allele_counts_ratio_raw$total_reads <- raw_allele_counts_ratio_raw$reads_B + raw_allele_counts_ratio_raw$reads_b
+
+#Get the median for each gene, across all samples
+median_expression <- aggregate(total_reads ~ gene, data = raw_allele_counts_ratio_raw, median)
+colnames(median_expression)[2] <- "median_expression"
+#Add median expression
+raw_allele_counts_ratio_raw <- merge(raw_allele_counts_ratio_raw, median_expression)
+#Remove genes with median expression <= 1
+allele_counts_ratio <- raw_allele_counts_ratio_raw[raw_allele_counts_ratio_raw$median_expression > 1, ]
+
+#Get LFC
+allele_counts_ratio$lfc <- log2((allele_counts_ratio$reads_B+1)/(allele_counts_ratio$reads_b+1))
+
+#Add information on non-synonymous mutations
+allele_counts_ratio_nonsyn <- merge(allele_counts_ratio, snp_effect_nonsyn_raw)
+
+#Transform into factor
+allele_counts_ratio_nonsyn$all_nonsyn_muts_fctr <- factor(allele_counts_ratio_nonsyn$all_nonsyn_muts,
+                                                     levels = sort(unique(allele_counts_ratio_nonsyn$all_nonsyn_muts)))
+
+allele_counts_ratio_nonsyn$population_fctr <- factor(allele_counts_ratio_nonsyn$population,
+                                                     levels = c("south_america", "north_america", "taiwan"))
+#Plot the thing, by population first
+ggplot(data = allele_counts_ratio_nonsyn, aes(x = all_nonsyn_muts, y = lfc)) + geom_boxplot() +
+      geom_jitter()
+
+nonsyn_exp_plot <- ggplot(data =  allele_counts_ratio_nonsyn[allele_counts_ratio_nonsyn$median_expression > 5,],
+                          aes(x = all_nonsyn_muts_fctr, y = lfc, color = population_fctr)) + 
+                      geom_hline(yintercept = 0, size = 1, linetype = 2) + 
+                      geom_boxplot(outlier.color = NA, aes(x = all_nonsyn_muts_fctr, y = lfc, color = population_fctr)) + 
+                      geom_point(aes(color = population_fctr), position = position_jitterdodge(dodge.width = 0.8), alpha = 0.3) + 
+                      geom_smooth(aes(x = as.integer(all_nonsyn_muts_fctr), y = lfc), method='lm', color = "blue") +
+                      theme_bw() + scale_color_manual(values = c("red1", "darkturquoise", "gold1"),
+                        name = "Population", labels = c("South America", "U.S.A.", "Taiwan")) + 
+                      ylab("log2 SB/Sb\nexpression ratio") + xlab("# of non-synonymous mutations") +
+                      theme(panel.grid.minor = element_blank(),
+                            panel.grid.major = element_blank(),
+                            axis.title.x = element_text(size = 18),
+                            axis.text.x = element_text(size = 12),
+                            axis.title.y = element_text(size = 18),
+                            axis.text.y = element_text(size = 12),
+                            legend.text = element_text(size = 12),
+                            legend.title = element_text(size = 18))
+
+#Save the plot
+ggsave(filename = "results/nonsyn_exp_plot.pdf", plot = nonsyn_exp_plot, device = "pdf", height = 210, width = 297, units = "mm")
+ggsave(filename = "results/nonsyn_exp_plot.png", plot = nonsyn_exp_plot, device = "png", height = 210, width = 297, units = "mm")
+
+#Make a model
+allele_counts_ratio_nonsyn$all_nonsyn_muts <- as.numeric(as.character(allele_counts_ratio_nonsyn$all_nonsyn_muts))
+lm_nonsyn_muts_ratio <- lm(data = allele_counts_ratio_nonsyn[allele_counts_ratio_nonsyn$median_expression > 5,], lfc ~ population + sample + all_nonsyn_muts)
+summary(lm_nonsyn_muts_ratio)
+```
+
+Add the SIFT output to the analysis. SIFT gives a score of fitness effect for a particular SNP, from 0 (very deleterious) to 1 (non-deleterious)
+
+```{r add_sift_score, include = FALSE}
+#Load the SIFT scores
+sift_output <- read.table("input/common_snps_ensembl_SIFTannotations.xls", sep = "\t", header = TRUE,
+                          stringsAsFactors = FALSE)
+
+#Get gene names from biomaRt
+TxDb_sinvicta_genes <- makeTxDbFromBiomart(biomart = "metazoa_mart",
+                  host = "jul2018-metazoa.ensembl.org",
+                  dataset = "sinvicta_eg_gene")
+sinvicta_genes <- transcripts(TxDb_sinvicta_genes, columns=c("GENEID"))
+
+#Get a GRanges object from the sift_output
+sift_gr <- GRanges(seqnames = sift_output$CHROM, IRanges(start = sift_output$POS, width = 1), sift_score = sift_output$SIFT_SCORE)
+
+#Get the transcript names for the sift scores
+sift_overlaps <- findOverlaps(sift_gr, sinvicta_genes)
+sift_gr_matched <- sift_gr[queryHits(sift_overlaps)]
+mcols(sift_gr_matched) <- cbind.data.frame(mcols(sift_gr_matched),
+                                           mcols(sinvicta_genes[subjectHits(sift_overlaps)]))
+
+sift_scores_snp <- data.frame(sift_gr_matched, stringsAsFactors = FALSE)
+#Remove duplicates emerging from multiple transcripts in a single gene.
+sift_scores_snp <- unique(sift_scores_snp)
+#Replace NAs with 1
+sift_scores_snp$sift_score[is.na(sift_scores_snp$sift_score)] <- 1
+#Remove unnecesary columns 
+sift_scores_snp <- data.frame(gene = unlist(sift_scores_snp$GENEID), sift_score = sift_scores_snp$sift_score)
+#Aggregate SNPs per gene, selecting the lowest SIFT score for each gene
+sift_scores_gene <- aggregate(sift_score ~ gene, data = sift_scores_snp, min)
+
+#Merge with general data frame, remove genes without sift score
+allele_counts_ratio_sift <- merge(allele_counts_ratio_nonsyn, sift_scores_gene)
+#Plot SB/Sb LFC against SIFT scores
+ggplot(data = allele_counts_ratio_sift[allele_counts_ratio_sift$median_expression > 5, ], aes(x = sift_score, y = lfc, color = population)) + geom_point() + geom_smooth(method = "lm")
+
+sift_score_lfc <- lm(lfc ~ population * sift_score, data = allele_counts_ratio_sift[allele_counts_ratio_sift$median_expression > 5, ])
+summary(sift_score_lfc)
+ggplot(data = allele_counts_ratio_sift[allele_counts_ratio_sift$median_expression > 10, ], aes(x = sift_score, y = lfc)) + geom_point() + geom_smooth(method = "lm")
+
+#SIFT score seems to have no predictive value
+#Differences between SIFT scores for genes with dosage compensation pattern
+allele_counts_ratio_sift$dosage_comp_pattern <- ifelse(allele_counts_ratio_sift$gene %in% bb_genes, "dc_pattern", "no_dc")
+allele_counts_ratio_sift_dc <- unique(allele_counts_ratio_sift[, c("gene", "dosage_comp_pattern", "sift_score")])
+ggplot(allele_counts_ratio_sift_dc, aes(x = dosage_comp_pattern, y = sift_score)) + geom_boxplot() + geom_jitter(position = "jitter")
+
+```
+
+## Indels analysis (candidate genes only)
+
+Load from the indels gene table generated by snpEff. These are indels fixed between Sb and SB and common to both North and South American populations
+
+```{r load_indel_data, include = FALSE}
+#Load the table (tab separated table). Remove the first row containing irrelevant info 
+indel_effect <- read.csv("input/snpEff_genes_indels.txt", sep = "\t",
+                       skip = 1, header = TRUE)
+
+#Clean the column names
+colnames(indel_effect) <- gsub(pattern = "variants_",
+                             replacement = "",
+                             x = colnames(indel_effect))
+
+colnames(indel_effect)[1] <- gsub(pattern = "X\\.",
+                                replacement = "",
+                                x = colnames(indel_effect)[1])
+
+#Remove duplicates arising from multiple transcripts per gene
+indel_effect$TranscriptId <- NULL
+#Keep only the first row
+indel_effect <- indel_effect[!duplicated(indel_effect$GeneId), ]
+
+```
+
+The candidate genes, that is, genes differentially expressed between SB and Sb in both populations and also between single- and multiple- queen individuals are:
+
+* LOC105194481
+* LOC105199327
+* LOC105199531
+
+How do the SNPs between SB and Sb affect them?
+```{r indel_eff_candidate_genes, include = FALSE}
+#Subset for the candidate genes only
+indel_effect_candidates <- subset(x = indel_effect, subset = GeneId %in% candidate_genes)
+
+#Remove uninformative columns (all genes have 0 effects)
+indel_effect_candidates <- indel_effect_candidates[, colSums(indel_effect_candidates != 0) > 0]
+```
 
 
 
