@@ -598,7 +598,7 @@ p1 <- ggplot(data = parsed_counts_all_ratios_common_genes, aes(x = gene, y = lfc
                     strip.text.y= element_text(size = 12, angle = 45), legend.title = element_text(size=13, face="bold"),
                     legend.text = element_text(size=12))
 
-ggsave(filename = "results/boxplot_lfcs_common.pdf", plot = p1, device = "pdf", height = 30, width = 60, units = "cm")
+#ggsave(filename = "results/boxplot_lfcs_common.pdf", plot = p1, device = "pdf", height = 30, width = 60, units = "cm")
 ```
 
 Same plot with North American populations only
@@ -711,7 +711,7 @@ p3 <- ggplot(data = parsed_counts_all_ratios_common_genes, aes(x = gene, y = lfc
         
 
 #Save the plot
-ggsave(filename = "results/boxplot_lfcs_common_format2.pdf", plot = p3, device = "pdf", height = 210, width = 297, units = "mm")
+#ggsave(filename = "results/boxplot_lfcs_common_format2.pdf", plot = p3, device = "pdf", height = 210, width = 297, units = "mm")
 
 #Plot the south american data 3rd format, merged by tissue
 parsed_counts_ratios_south_america <- parsed_counts_all_ratios_common_genes[parsed_counts_all_ratios_common_genes$population == "south_america", ]
@@ -742,7 +742,7 @@ plot_format_3 <- ggplot(data = parsed_counts_ratios_south_america, aes(x = gene,
         
 
 #Save the plot
-ggsave(filename = "results/boxplot_south_america_only.pdf", plot = plot_format_3, device = "pdf", height = 210, width = 297, units = "mm")
+#ggsave(filename = "results/boxplot_south_america_only.pdf", plot = plot_format_3, device = "pdf", height = 210, width = 297, units = "mm")
 
 ```
 Run the same format for the Noth American only plot
@@ -777,7 +777,7 @@ p3 <- ggplot(data = parsed_counts_north_america_ratio, aes(x = gene, y = lfc)) +
               panel.grid.major.x = element_blank())
         
 #Save the plot
-ggsave(filename = "results/boxplot_lfcs_north_america_format2.pdf", plot = p3, device = "pdf", height = 210, width = 297, units = "mm")
+#ggsave(filename = "results/boxplot_lfcs_north_america_format2.pdf", plot = p3, device = "pdf", height = 210, width = 297, units = "mm")
 
 ```
 
@@ -833,7 +833,7 @@ p3b <- ggplot(data = parsed_counts_taiwan_ratio, aes(x = gene, y = lfc)) + geom_
               panel.grid.major.x = element_blank())
         
 #Save the plot
-ggsave(filename = "results/boxplot_lfcs_taiwan_format2.pdf", plot = p3, device = "pdf", height = 210, width = 297, units = "mm")
+#ggsave(filename = "results/boxplot_lfcs_taiwan_format2.pdf", plot = p3b, device = "pdf", height = 210, width = 297, units = "mm")
 
 ```
 
@@ -863,7 +863,7 @@ p4 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = gene, y = lfc
         
 
 #Save the plot
-ggsave(filename = "results/boxplot_lfcs_common_sig_only_format2.pdf", plot = p4, device = "pdf", height = 210, width = 297, units = "mm")
+#ggsave(filename = "results/boxplot_lfcs_common_sig_only_format2.pdf", plot = p4, device = "pdf", height = 210, width = 297, units = "mm")
 
 ```
 
@@ -916,8 +916,8 @@ p6 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = body_part, y 
               axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_blank(),
               strip.text.x= element_text(size = 9), legend.position = "none")
 #Save the plot
-ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene.pdf", plot = p6, device = "pdf", height = 150, width = 297, units = "mm")
-ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_legend.pdf", plot = p5, device = "pdf", height = 150, width = 297, units = "mm")
+#ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene.pdf", plot = p6, device = "pdf", height = 150, width = 297, units = "mm")
+#ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_legend.pdf", plot = p5, device = "pdf", height = 150, width = 297, units = "mm")
 
 ```
 
@@ -973,8 +973,8 @@ p8 <- ggplot(data = parsed_counts_sig_ratios_common_genes, aes(x = body_part, y 
               axis.text.y = element_text(vjust = 0.5, size = 12), axis.title.y = element_blank(),
               strip.text.x= element_text(size = 9), legend.position = "none")
 #Save the plot
-ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_body_part.pdf", plot = p8, device = "pdf", height = 150, width = 297, units = "mm")
-ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_legend_body_part.pdf", plot = p7, device = "pdf", height = 150, width = 297, units = "mm")
+#ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_body_part.pdf", plot = p8, device = "pdf", height = 150, width = 297, units = "mm")
+#ggsave(filename = "results/boxplot_lfcs_common_sig_only_per_gene_legend_body_part.pdf", plot = p7, device = "pdf", height = 150, width = 297, units = "mm")
 ```
 
 ## Euler diagram for the different lists of significant genes
@@ -988,5 +988,5 @@ euler_sig_genes <- euler(combinations = list("South America only" = sig_genes_sa
 #Generate plot
 euler_sig_genes_plot <- plot(euler_sig_genes, quantities = TRUE, edges = TRUE, labels = list(fontsize = 8))
 ## Save:
-ggsave(plot = euler_sig_genes_plot, filename = "results/euler_plot.pdf", width = 20, height = 20, units = "cm")
+#ggsave(plot = euler_sig_genes_plot, filename = "results/euler_plot.pdf", width = 20, height = 20, units = "cm")
 ```
