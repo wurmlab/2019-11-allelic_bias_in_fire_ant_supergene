@@ -3,8 +3,9 @@
 Scripts for the generation and analysis of the data used for "Genomic architecture and evolutionary conflict drive allele-specific expression in the social supergene of the red fire ant". The scripts listed here go through all the steps from raw RNAseq data, to read count and analysis of differences in gene expression between social forms and between allele-specific expression in the red fire ant *Solenopsis invicta*.
 
 The raw data used for this analysis is available in NCBI, specifically:
-* RNAseq and DNAseq data from South American populations: [PRJNA542606](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA542606)
+* RNAseq and DNAseq data from South American populations: [PRJNA542606](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA542606).
 * RNAseq data from North American populations: [PRJDB4088](https://www.ncbi.nlm.nih.gov/bioproject/PRJDB4088) and [PRJNA49629](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA49629).
+* RNAseq data from Taiwanese populations: [PRJNA542500](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA542500).
 
 All the subdirectories are numbered according to the order in which they were run for the analysis:
 1. **subsetting_vcf:** Extracting variants from the VCF that fall within the supergene region and with fixed differences between SB and Sb. The same script was run in the VCFs based in both South and North American populations.
