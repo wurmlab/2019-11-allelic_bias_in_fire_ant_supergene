@@ -12,14 +12,15 @@ All the subdirectories are numbered according to the order in which they were ru
 3. **star_alignment_to_reference:** Align the raw RNAseq reads to the reference of the red fire ant. The same script was run for data from both South and North America populations and for the normal and Sb-transformed references.
 4. **wasp_reference_bias_free:** Generate a reference-bias free alignment BAM file using the alignments generated in the previous step. The same script was run for data from both South and North America populations.
 5. **allele_specific_read_count:** Generate allele-specific read counts for the supergene region of the red fire ant based on the VCFs and reference-bias free BAM files generated in previous steps. The same script was run for data from both South and North America populations.
-6. **social_form_comparison:** Generate read counts from raw RNAseq data for North American populations. Test for significant differences in gene expression between social forms using DESeq2. 
-7. **differential_expression_analyses:** Test for allele-specific expression differences between variants in each population independently using DESeq2.
+6. **social_form_comparison:** Generate read counts from raw RNAseq data for North American populations. Test for significant differences in gene expression between social forms using DESeq2.
+7. **a. differential_expression_analyses_americas:** Test for allele-specific expression differences between variants in each population independently using DESeq2 for North and South American populations.
+7. **b .taiwan_ase_analysis:** Perform allele specific expression analyses and test for expression differences between variants in Taiwanese populations.
 8. **combined_ase_analysis:** Test for allele-specific expression difference between variants using both North and South American populations using a linear mixed effects model. Generate plots to visualise allele-specific expression differences between variants.
-9. **social_form_ase_analysis:** Analyse together the allele-specific expression data and social form gene expression differences from North America 
+9. **social_form_ase_analysis:** Analyse together the allele-specific expression data and social form gene expression differences from North America
 10. **generate_gnG_vcf:** Transform the original whole-genome VCF for North American populations from a gnGA assembly to a gnG assembly.
 11. **whole_genome_ase:** Generate allele-specific read counts for the whole genome of *Solenopsis invicta*.
 12. **whole_genome_ase_analysis:** Use DESeq2 to test for allele-specific expression differences in the whole genome of *Solenopsis invicta*.
 13. **snp_effects:** Run SNPEff on the variants detected in the supergene to asses their potential impact in protein coding sequences.
-14. **snp_effects_analysis:** Analyse the results generated in the previous step to check for effects in specific gene lists.
+14. **snp_effects_analysis:** Analyse the results generated in the previous step to test for Sb lower expression with increased nonsynonymous mutations. Check for effects in specific gene lists.
 15. **indel_subsetting:** Select indels in the supergene region with fixed differences between SB and Sb in both populations of *Solenopsis invicta*. Not used in the manuscript.
-
+16. **mt_diversity:** Analyze mitocondrial diversity between different South American populations of *Solenopsis invicta*. Not used in the manuscript.
