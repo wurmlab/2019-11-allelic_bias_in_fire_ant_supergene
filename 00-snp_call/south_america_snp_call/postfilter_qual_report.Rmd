@@ -1,0 +1,499 @@
+# Quality parameters in VCF files
+
+## Introduction
+
+```{r intro, include=FALSE}
+
+gt_df <- read.table(gt)
+
+n_samples <- ncol(gt_df)
+
+```
+
+Here, we analyse `r n_samples` male samples of socially polymorphic *Solenopsis* species, of which half are carrying the *Gp-9B* and half the *Gp-9b* allele. We have aligned these samples to the Si_gnGA reference assembly using bowtie 2, with default parameters. We used freebayes to call variants among these individuals, with the following parameters: --min-alternate-count 1 (requires a minimum of 1 read supporting the alternative call to make a call) and --min-alternate-fraction 0.2 (requires that a minimum of 20% of the reads support the alternative allele to make a call; one can increase this number to speed up the running of freebayes).
+
+Here, we analyse the produced variants in order to remove false positive calls from the data set, and also deal with sites where one or more individual has 0 coverage.
+
+## Types of false call
+
+There are two main types of false calls:
+
+1. Site error, where freebayes cannot make a call on the site properly, possibly because it cannot make a non-ambiguous local alignment of the reads (false positive). These sites have low QUAL value and can be removed from the analysis.
+2. Sample genotype error, where the genotype for a given individual is not correct at a site. As far as I can see, there are three main sources for this error:
+  3. The genotype call reflects a collapsed repeat rather than a true difference from other individuals (false positive)
+  4. The genotype call reflects a sequencing error rather than a true difference from other individuals (false positive)
+  5. An individual with no genotype call (i.e. a "." instead of a "0" or a "1"), assumed to be because of low or no coverage (this type of error leads to the use of false negative genotyping if we assume the individual is carrying the reference allele in subsequent analyses).
+
+A final possibility is false negative calls, where the software failed to detect true variant sites.
+
+
+```{r gt_inputs, include=FALSE}
+geno_files <- list(ro = ro, ao = ao, gt = gt, qual = qual)
+# geno_files <- list(
+#   ro = "ro",
+#   ao = "ao",
+#   gt = "gt",
+#   qual = "qual"
+# )
+geno <- lapply(geno_files, read.table)
+geno <- lapply(geno, as.matrix)
+
+geno$ao[geno$ao == "."] <- "0"
+geno$ro[geno$ro == "."] <- "0"
+geno$ro <- apply(geno$ro, 2, as.numeric)
+geno$ao <- apply(geno$ao, 2, as.numeric)
+
+sample_names <- as.character(read.table(samples)$V1)
+
+```
+
+```{r make_matrices, include=FALSE}
+
+# co == called observation (number of reads supporting the callsed allele)
+# Make empty matrix
+co <- matrix(-9, nrow = nrow(geno$gt), ncol = ncol(geno$gt))
+
+# Populate with the reference alleles
+co[geno$gt == "0"] <- geno$ro[geno$gt == "0"]
+
+# Populate with the alternative alleles
+co[geno$gt == "1"] <- geno$ao[geno$gt == "1"]
+
+# Populate with the fields where no allele was Called
+# When no genotype is called, make sure there are no reads for either allele
+stopifnot(geno$ro[geno$gt == "."] == 0)
+stopifnot(geno$ao[geno$gt == "."] == 0)
+co[geno$gt == "."] <- 0
+
+# Make sure all is populated
+stopifnot(co >= 0)
+
+# read depth per individual
+dp <- geno$ro + geno$ao
+
+# cf == called fraction = number of reads supporting the called allele / total
+cf <- co / dp
+
+```
+
+## Number of variants per base-pair of assembly
+
+```{r load_reference, include=FALSE}
+
+# Read in modified .fai file with the size of scaffold
+scaff_len <- read.table(scaff_len)
+colnames(scaff_len) <- c("scaffold", "length", "OFFSET", "LINEBASES", "LINEWIDTH")
+
+```
+
+This VCF file has `r nrow(cf)` variants. Given that we analysed `r round(sum(scaff_len$length)/1e6, 2)` Mb of the reference assembly, the number of variants equates to `r round(1000 * nrow(cf)/sum(scaff_len$length), 2)` variants per kb.
+
+## Quality (QUAL) values
+
+The QUAL distribution is seen here:
+
+```{r qual_dist, echo=FALSE, error=FALSE, message=FALSE, warning=FALSE}
+require(ggplot2)
+
+qual_df <- data.frame(qual = geno$qual[,"V1"])
+
+ggplot(qual_df) + geom_histogram(aes(x = qual), binwidth=1) +
+  xlim(0, 100) +
+  xlab("QUAL") +
+  theme_bw()
+
+```
+
+## Genotypes where a single individual has reads supporting more than one allele
+
+```{r prefilter_summary, include=FALSE, cache=FALSE}
+
+# Number of variants
+n_var <- nrow(cf)
+
+# Number of variants where at least one individual has no coverage
+pre_filter_missing_data <- sum(apply(cf, 1, function(x) any(is.na(x))))
+
+# Number of variants where one or more individuals have reads supporting the non-called allele
+pre_filter_cf_prop_df   <- cf[apply(cf, 1, function(x) !all(is.na(x))),]
+nonCalledProp <- function(x) {
+  # Of the individuals with a call, what's the porportion with a read supporting the non-called allele
+  x <- x[!is.na(x)]
+  return(sum(x < 1)/length(x))
+}
+
+pre_filter_cf_prop <- apply(pre_filter_cf_prop_df, 1, function(x) nonCalledProp(x))
+
+```
+
+```{r sites_with_ambiguous, echo=FALSE}
+
+anyAmbiguous <- function(x) {
+  if (all(is.na(x))) {
+    return(FALSE)
+  } else {
+    return(any(x[!is.na(x)] < 1))
+  }
+}
+
+sites_with_ambiguous <- apply(cf, 1, function(x) anyAmbiguous(x))
+
+```
+
+This VCF file has `r sum(sites_with_ambiguous)` variant sites (`r round(100*sum(sites_with_ambiguous)/n_var)`% of the total) where one or more individuals have at least one read supporting the non-called allele. All individuals have such sites.
+
+```{r sites_with_ambiguous_ind_dist, echo=FALSE}
+
+# For each individual, calculate the percentage of the sites that hace support
+#      in more than one individual.
+indAmbiguousPercentage <- function(x) {
+
+  x <- x[!is.na(x)]
+
+  return( 100 * sum(x < 1) / length(x) )
+}
+
+ambiguous_percentage_ind <- apply(cf, 2, function(x) indAmbiguousPercentage(x))
+ambiguous_percentage_ind <- data.frame(sample     = sample_names,
+                                       percentage = ambiguous_percentage_ind)
+
+# Make plot
+require(ggplot2)
+ggplot(ambiguous_percentage_ind, aes(x = sample, y = percentage)) +
+    geom_bar(stat = "identity") +
+    xlab("Sample") +
+    ylab("Percentage of sites with reads supporting both alleles") +
+    coord_flip() +
+    theme_bw()
+
+rm(sites_with_ambiguous)
+
+```
+
+
+```{r single_indv_cf_dist_prepare, include=FALSE}
+
+sample1 <- 1
+sample2 <- 2
+
+cf_ind_1 <- data.frame(sample          = sample_names[sample1],
+                       called_fraction = cf[, sample1])
+
+cf_ind_2 <- data.frame(sample          = sample_names[sample2],
+                       called_fraction = cf[, sample2])
+
+# Remove lines with NA values: these are lines with no read for any of the alleles.
+cf_ind_1   <- cf_ind_1[!is.na(cf_ind_1$called_fraction),]
+cf_ind_2   <- cf_ind_2[!is.na(cf_ind_2$called_fraction),]
+
+cf_ind <- rbind(cf_ind_1, cf_ind_2)
+
+#
+cf_ind_1_per <- 100 * sum(cf_ind_1$called_fraction < 1)/length(cf_ind_1$called_fraction)
+cf_ind_2_per <- 100 * sum(cf_ind_2$called_fraction < 1)/length(cf_ind_2$called_fraction)
+
+```
+
+However, any most sites, there is only few indidividuals will have reads supporting the non-called allele.
+
+```{r plot_cf_prop_histogram, echo=FALSE}
+
+nonCalledProp <- function(x) {
+  # Of the individuals with a call, what's the proportion with a read supporting
+  #      the non-called allele
+  if(all(is.na(x))) {
+    return(0)
+  } else {
+    x <- x[!is.na(x)]
+    return(sum(x < 1)/length(x))
+  }
+}
+
+cf_prop <- apply(cf, 1, function(x) nonCalledProp(x))
+
+require(ggplot2)
+
+cf_prop_df <- data.frame(cf_prop = cf_prop)
+ggplot(cf_prop_df) + geom_histogram(aes(x=cf_prop), binwidth=0.02) +
+           xlab("Fraction of individuals with reads supporting the non-called allele for each site") +
+           ylab("Number of sites") +
+           theme_bw()
+rm(cf_prop_df)
+```
+
+Is freebayes calling the right genotype when there are reads supporting both reference and alternative? Here, I show this for two individuals, `r sample_names[1]` and `r sample_names[2]` (arbitrarily chosen). These two individuals have `r round(cf_ind_1_per, 2)`% and `r round(cf_ind_2_per, 2)`% sites with reads supporting two alleles.
+
+```{r single_indv_cf_dist, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+
+ind_dist <- ggplot(cf_ind) +
+  geom_histogram(aes(x = called_fraction), binwidth = 0.025) +
+  xlab("Fraction of reads that support the called allele") +
+  facet_grid(. ~ sample) +
+  theme_bw()
+
+print(ind_dist)
+
+rm(cf_ind)
+
+```
+
+We can see how this distribution for all individuals:
+
+
+```{r cf_dist_by_individual, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=12.5}
+
+require(reshape2)
+
+cf_melt           <- cf
+colnames(cf_melt) <- sample_names
+
+cf_melt           <- melt(cf_melt)
+cf_melt           <- cf_melt[!is.na(cf_melt$value), ]
+
+cf_per_ind <- ggplot(cf_melt) +
+                   geom_boxplot(aes(y = value, x = Var2)) +
+                   xlab("Individual") +
+                   ylab("Fraction of reads that support the called allele") +
+                   theme_bw() +
+                   coord_flip()
+
+print(cf_per_ind)
+
+# Summary table
+summary_table <- data.frame(
+    samples            = levels(cf_melt$Var2),
+    mean_as_percentage = round(100*tapply(cf_melt$value, cf_melt$Var2, mean), 2),
+    sd_as_percentage   = round(100*tapply(cf_melt$value, cf_melt$Var2, sd), 2)
+  )
+
+# print(summary_table)
+
+rm(cf_melt)
+
+```
+
+Generally, freebayes seems to be choosing to call the allele with the highest number of reads supporting it. On the following top figure, I included every 50th SNP to make visualisation possible, and removed sites where the read count for either type of read was larger than 25. On the following bottom figure, I show the distribution for all sites where there is support for the non-called allele.
+
+```{r single_indv, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+
+geno_df <- rbind(
+  data.frame(AO     = geno$ao[, 1],
+             RO     = geno$ro[, 1],
+             GT     = geno$gt[, 1],
+             sample = sample_names[1]),
+  data.frame(AO     = geno$ao[, 2],
+             RO     = geno$ro[, 2],
+             GT     = geno$gt[, 2],
+             sample = sample_names[2]))
+
+
+geno_df$GT         <- factor(geno_df$GT)
+levels(geno_df$GT) <- c("REF", "ALT")
+
+
+# SETUP
+count_max <- 25
+nth_prune <- 50 # Only consider every nth row of the table
+roao_geno <- geno_df
+
+# Limit the data
+roao_geno <- roao_geno[roao_geno$AO <= count_max & roao_geno$RO <= count_max, ]
+roao_geno <- roao_geno[seq(from = 1, to = nrow(roao_geno), by = nth_prune), ]
+
+# Make plot
+require(ggplot2)
+require(gridExtra)
+
+me_plot <- ggplot(roao_geno) +
+     geom_jitter(aes(x = RO, y = AO, colour = GT)) +
+     xlab("Number of reads supporting REF allele (RO)") +
+     ylab("Number of reads supporting ALT allele (AO)") +
+     scale_colour_manual(name   = "Genotype",
+                         values = c("darkorchid1", "darkorange2", "royalblue2")) +
+    facet_grid(. ~ sample) +
+     ggtitle(paste("every ", nth_prune, "th site", sep = "")) +
+     theme_bw()
+
+print(me_plot)
+
+fr_geno <- geno_df
+
+count_max <- max(c(max(fr_geno$AO), fr_geno$RO))
+#nth_prune <- 10 # Only consider every nth row of the table
+
+# Limit the data
+fr_geno <- fr_geno[fr_geno$AO < count_max & fr_geno$RO < count_max, ]
+fr_geno <- fr_geno[fr_geno$AO > 0 & fr_geno$RO > 0, ]
+#fr_geno <- fr_geno[seq(from = 1, to = nrow(fr_geno), by = nth_prune), ]
+
+fr_geno$AO_FRAC <- fr_geno$AO/ ( fr_geno$AO + fr_geno$RO)
+
+fr_plot <- ggplot(fr_geno) +
+     geom_histogram(aes(x = AO_FRAC, fill = GT),
+                    position = "dodge",
+                    binwidth = 0.02) +
+     scale_fill_manual(name   = "Called genotype",
+                         values = c("darkorange2", "royalblue2")) +
+     xlab("Fraction of reads that support the ALT allele") +
+     xlim(min(fr_geno$AO_FRAC), max(fr_geno$AO_FRAC)) +
+     facet_grid(. ~ sample) +
+     ggtitle(paste("sites with both read types", sep="")) +
+     theme_bw()
+
+print(fr_plot)
+
+```
+
+##  Very high coverage
+
+Some collapsed repeats may have very high coverage. We do not want to call these sites as being variant. In the following, we plot the mean, the median and the maximum coverage across the samples for any given individual.
+
+```{r coverage_summary_plots, echo=FALSE, warning=FALSE}
+
+# Mean read depth
+require(ggplot2)
+mead_dp         <- apply(dp, 1, mean)
+mean_dp_df      <- data.frame(mean_dp = mead_dp[mead_dp <= 100])
+mean_dp_df_dist <- ggplot(mean_dp_df) + geom_histogram(aes(x=mean_dp), binwidth=1) +
+                   xlab("Mean read depth") +
+                   ggtitle("Mean read depth per called site (limited at 100X)") +
+                   theme_bw()
+
+median_dp      <- apply(dp, 1, median)
+median_dp_df   <- data.frame(median_dp = median_dp[median_dp <= 100])
+median_dp_dist <- ggplot(median_dp_df) + geom_histogram(aes(x=median_dp), binwidth=1) +
+                  xlab("Median read depth") +
+                  ggtitle("Median read depth per called site (limited at 100X)") +
+                  theme_bw()
+
+max_dp         <- apply(dp, 1, max)
+max_dp_df      <- data.frame(max_dp = max_dp[max_dp <= 200])
+max_dp_dist    <- ggplot(max_dp_df) + geom_histogram(aes(x=max_dp), binwidth=1) +
+                  xlab("Maximum read depth") +
+                  ggtitle("Maximum read depth per called site (limited at 200X)") +
+                  theme_bw()
+
+# Print
+print(mean_dp_df_dist)
+print(median_dp_dist)
+print(max_dp_dist)
+
+```
+
+## Low coverage and coverage heterogeneity
+
+As mentioned already, before any filtering there are `r pre_filter_missing_data` variants (`r round(100*pre_filter_missing_data/n_var)`% of `r n_var`) with no coverage in one or more individual. The following graphs are made from the read depth information taken from the VCF file, not the BAM files, showing that often a few individuals have no coverage at sites called as variant.
+
+
+```{r indcov_histogram, echo=FALSE, warning=FALSE}
+# Number of individuals with coverage == 0X
+dp_n <- apply(dp, 1, function(row) sum(row == 0))
+
+qual_cov_hist <-  data.frame(individuals_with_cov = dp_n)
+
+require(ggplot2)
+library(gridExtra)
+
+qual_cov_plot <- ggplot(qual_cov_hist) +
+                   geom_histogram(aes(x = individuals_with_cov), binwidth = 1) +
+                   xlab("number of individuals with coverage >0X") +
+                   ggtitle("The effect of lack of coverage") +
+                   theme_bw()
+
+# Print
+print(qual_cov_plot)
+
+dp_melt           <- dp
+colnames(dp_melt) <- sample_names
+
+require(reshape2)
+dp_melt <- melt(dp_melt)
+dp_melt <- dp_melt[dp_melt$value <= 40, ]
+
+cov_per_ind <- ggplot(dp_melt) +
+                   geom_boxplot(aes(y = value, x = Var2)) +
+                   xlab("Individual") +
+                   ylab("Coverage") +
+                   ggtitle("Coverage heterogeneity (Cov > 40X removed)") +
+                   theme_bw() +
+                   coord_flip()
+
+print(cov_per_ind)
+
+```
+
+## Diploidy
+
+A diploid individual will have many sites with reads supporting two alleles (a subset of the sites where the non-called allele has supportting reads, shown above).
+
+
+We can show the number of sites that have reads supporting both alleles (i.e., heterozygous sites) for each individual, both as the total number of sites and the proportion of sites.
+
+
+```{r diploid, echo=FALSE, warning=FALSE, message=FALSE}
+
+# Het: heterozygous: sites with reads supporting two alleles
+het_sites <- (geno$ao > 0) & (geno$ro > 0)
+
+# Per individual: number of heterozygous sites as a proportion of sites with
+#     any reads at all
+cal_sites <- (geno$ao + geno$ro) > 0
+per_sites <- sapply(1:ncol(het_sites),
+                    function(i) sum(het_sites[,i]) / sum(cal_sites[,i]))
+
+# Make into data.frame
+het_count <- data.frame(sample                  = sample_names,
+                        heterozygous_proportion = per_sites)
+
+# Make plot
+require(ggplot2)
+ggplot(het_count) + geom_col(aes(x = sample, y = heterozygous_proportion)) +
+    xlab("Sample") +
+    ylab("Heterozygous sites as a percentage of sites with reads (%)") +
+    coord_flip() +
+    theme_bw()
+
+```
+
+In diploid individuals, we expect the heterozygous sites to have a proportion of about 0.5. The plot above and below suggest that no individuals have a proportion of about 0.5. Note that for each of the individuals in the following figure, we only included the sites that have a proportion lower than 1 and with coverage for that individual.
+
+```{r diplod3, echo=FALSE, warning=FALSE}
+# nonCalledProp <- function(x) {
+#   # Subset the sites with with coverage (!NA) and where both types of read are
+#   #   present (x < 1)
+#   x <- x[(!is.na(x)) & (x < 1)]
+#   return(c(mean(x), sd(x), median(x)))
+# }
+#
+# het_summary           <- t(apply(cf, 2, nonCalledProp))
+# colnames(het_summary) <- c("mean", "sd", "median")
+# het_summary           <- data.frame(het_summary)
+# het_summary$sample    <- sample_names
+#
+#
+# ggplot(het_summary, aes(x = sample, y = mean)) +
+#     geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd), width=.1) +
+#     geom_point() +
+#     coord_flip()
+#
+
+nonCalledProp <- function(x, sample) {
+  # Subset the sites with with coverage (!NA) and where both types of read are
+  #   present (x < 1)
+  x <- x[(!is.na(x)) & (x < 1)]
+  return(data.frame(sample=sample, proportion=x))
+}
+
+prop_all <- lapply(1:length(sample_names),
+        function(i) nonCalledProp(x = cf[,i], sample = sample_names[i]))
+
+prop_all_df <- do.call(rbind, prop_all)
+
+ggplot(prop_all_df) +
+    geom_boxplot(aes(x = sample, y = proportion)) +
+    ylab("proportion of reads supporting the called allele") +
+    xlab("sample") +
+    coord_flip() +
+    theme_bw()
+
+```

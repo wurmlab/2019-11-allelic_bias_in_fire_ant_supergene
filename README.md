@@ -8,6 +8,7 @@ The raw data used for this analysis is available in NCBI, specifically:
 * RNAseq data from Taiwanese populations: [PRJNA542500](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA542500).
 
 All the subdirectories are numbered according to the order in which they were run for the analysis:
+0. **snp_call:** Call SNPs between SB and Sb in North and South American populations.
 1. **subsetting_vcf:** Extracting variants from the VCF that fall within the supergene region and with fixed differences between SB and Sb. The same script was run in the VCFs based in both South and North American populations.
 2. **littleb_ified_reference:** Transform the gnG version of the red fire ant genome reference by replacing the SB variants from the reference by Sb variants from the VCFs generated in the previous step. The same script was run in the VCFs based in both South and North American populations.
 3. **star_alignment_to_reference:** Align the raw RNAseq reads to the reference of the red fire ant. The same script was run for data from both South and North America populations and for the normal and Sb-transformed references.
